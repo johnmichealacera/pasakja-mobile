@@ -1,8 +1,12 @@
 import React, { useCallback, useState } from "react";
 import { ActivityIndicator, Alert, StyleSheet, Text, View } from "react-native";
 import { router, useFocusEffect } from "expo-router";
+import { Ionicons } from "@expo/vector-icons";
 import { Screen } from "@/components/Screen";
 import { Button } from "@/components/Button";
+import { Card } from "@/components/Card";
+import { Avatar } from "@/components/Avatar";
+import { EmptyState } from "@/components/EmptyState";
 import { TrackingMap } from "@/components/TrackingMap";
 import { TripStatusTimeline } from "@/components/TripStatusTimeline";
 import { usePolling } from "@/hooks/usePolling";
@@ -12,7 +16,7 @@ import type { LiveLocation } from "@/api/bookings";
 import { PASSENGER_OPEN_BOOKING_STATUSES } from "@/lib/bookingGuards";
 import { ApiError } from "@/api/client";
 import type { Booking } from "@/types";
-import { colors } from "@/theme";
+import { colors, radius, spacing, typography } from "@/theme";
 
 const DRIVER_POLL_MS = 10000;
 const LIVE_STATUSES: Booking["status"][] = ["ACCEPTED", "PICKED_UP", "IN_PROGRESS"];
@@ -69,7 +73,7 @@ export default function PassengerTripScreen() {
     return (
       <Screen scroll={false}>
         <View style={styles.center}>
-          <ActivityIndicator />
+          <ActivityIndicator color={colors.teal} />
         </View>
       </Screen>
     );
@@ -78,11 +82,14 @@ export default function PassengerTripScreen() {
   if (!trip) {
     return (
       <Screen>
-        <Text style={styles.title}>No Active Trip</Text>
-        <Text style={{ color: colors.muted, marginBottom: 20 }}>
-          Book a ride to see live tracking here.
-        </Text>
-        <Button title="Book a Ride" onPress={() => router.replace("/passenger/book")} />
+        <Text style={styles.title}>Your Trip</Text>
+        <EmptyState
+          icon="navigate-outline"
+          title="No active trip"
+          subtitle="Book a ride to see live tracking here."
+        />
+        <View style={styles.spacer} />
+        <Button title="Book a Ride" icon="add-circle" onPress={() => router.replace("/passenger/book")} />
       </Screen>
     );
   }
@@ -111,32 +118,51 @@ export default function PassengerTripScreen() {
         <TripStatusTimeline status={trip.status} />
 
         {trip.status === "PENDING" ? (
-          <Text style={styles.waiting}>Waiting for a driver to accept your request…</Text>
-        ) : null}
-
-        {trip.status === "ACCEPTED" && driverLocation?.etaMinutes != null ? (
-          <Text style={styles.eta}>Driver is about {driverLocation.etaMinutes} min away</Text>
-        ) : null}
-
-        {trip.driver?.user ? (
-          <View style={styles.card}>
-            <Text style={styles.label}>Driver</Text>
-            <Text style={styles.value}>{trip.driver.user.name}</Text>
-            <Text style={styles.subvalue}>
-              {trip.driver.vehicleType} · {trip.driver.vehiclePlate}
-            </Text>
+          <View style={styles.waitingRow}>
+            <ActivityIndicator size="small" color={colors.warning} />
+            <Text style={styles.waiting}>Finding a driver near you…</Text>
           </View>
         ) : null}
 
-        <View style={styles.card}>
-          <Text style={styles.label}>Pickup</Text>
-          <Text style={styles.value}>{trip.pickupAddress}</Text>
-          <Text style={[styles.label, { marginTop: 10 }]}>Dropoff</Text>
-          <Text style={styles.value}>{trip.dropoffAddress}</Text>
-        </View>
+        {trip.status === "ACCEPTED" && driverLocation?.etaMinutes != null ? (
+          <View style={styles.etaBadge}>
+            <Ionicons name="time" size={14} color={colors.teal} />
+            <Text style={styles.eta}>Driver is about {driverLocation.etaMinutes} min away</Text>
+          </View>
+        ) : null}
+
+        {trip.driver?.user ? (
+          <Card style={styles.driverCard}>
+            <Avatar name={trip.driver.user.name} uri={trip.driver.user.profileImage} size={48} />
+            <View style={styles.driverTextCol}>
+              <Text style={styles.value}>{trip.driver.user.name}</Text>
+              <Text style={styles.subvalue}>
+                {trip.driver.vehicleType} · {trip.driver.vehiclePlate}
+              </Text>
+            </View>
+          </Card>
+        ) : null}
+
+        <Card style={styles.routeCard}>
+          <View style={styles.routeRow}>
+            <Ionicons name="ellipse" size={10} color={colors.emerald} />
+            <View style={styles.routeTextCol}>
+              <Text style={styles.label}>Pickup</Text>
+              <Text style={styles.value}>{trip.pickupAddress}</Text>
+            </View>
+          </View>
+          <View style={styles.routeConnector} />
+          <View style={styles.routeRow}>
+            <Ionicons name="location" size={13} color={colors.coral} />
+            <View style={styles.routeTextCol}>
+              <Text style={styles.label}>Dropoff</Text>
+              <Text style={styles.value}>{trip.dropoffAddress}</Text>
+            </View>
+          </View>
+        </Card>
 
         {canCancel ? (
-          <Button title="Cancel Ride" variant="danger" onPress={handleCancel} loading={isCancelling} />
+          <Button title="Cancel Ride" variant="danger" icon="close-circle-outline" onPress={handleCancel} loading={isCancelling} />
         ) : null}
       </View>
     </Screen>
@@ -145,20 +171,31 @@ export default function PassengerTripScreen() {
 
 const styles = StyleSheet.create({
   center: { flex: 1, alignItems: "center", justifyContent: "center" },
-  title: { fontSize: 22, fontWeight: "700", color: colors.text, marginBottom: 8 },
+  title: { ...typography.display, fontSize: 22, marginBottom: spacing.lg },
+  spacer: { height: spacing.lg },
   mapWrap: { height: "45%" },
-  sheet: { padding: 20 },
-  waiting: { color: colors.warning, fontWeight: "600", marginBottom: 16 },
-  eta: { color: colors.primary, fontWeight: "700", marginBottom: 16 },
-  card: {
-    backgroundColor: colors.card,
-    borderWidth: 1,
-    borderColor: colors.border,
-    borderRadius: 12,
-    padding: 14,
-    marginBottom: 12,
+  sheet: { padding: spacing.xl },
+  waitingRow: { flexDirection: "row", alignItems: "center", gap: spacing.sm, marginBottom: spacing.lg },
+  waiting: { ...typography.bodyStrong, color: colors.warning },
+  etaBadge: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+    alignSelf: "flex-start",
+    backgroundColor: colors.surfaceMuted,
+    borderRadius: radius.full,
+    paddingHorizontal: spacing.md,
+    paddingVertical: 6,
+    marginBottom: spacing.lg,
   },
-  label: { fontSize: 12, color: colors.muted },
-  value: { fontSize: 15, color: colors.text, fontWeight: "600", marginTop: 2 },
-  subvalue: { fontSize: 13, color: colors.muted, marginTop: 2 },
+  eta: { ...typography.bodyStrong, color: colors.teal },
+  driverCard: { flexDirection: "row", alignItems: "center", gap: spacing.md, marginBottom: spacing.md },
+  driverTextCol: { flex: 1 },
+  routeCard: { marginBottom: spacing.lg },
+  routeRow: { flexDirection: "row", alignItems: "flex-start", gap: spacing.md },
+  routeConnector: { width: 1, height: 14, backgroundColor: colors.border, marginLeft: 4, marginVertical: 2 },
+  routeTextCol: { flex: 1 },
+  label: { ...typography.caption },
+  value: { ...typography.bodyStrong, marginTop: 2 },
+  subvalue: { ...typography.caption, marginTop: 2 },
 });

@@ -95,7 +95,7 @@ export function DocumentPickerField({
 
 const styles = StyleSheet.create({
   container: { marginBottom: 16 },
-  label: { fontSize: 14, fontWeight: "600", color: colors.text, marginBottom: 8 },
+  label: { fontSize: 14, fontWeight: "600", color: colors.ink, marginBottom: 8 },
   preview: { width: 96, height: 96, borderRadius: 10, marginBottom: 8 },
   row: { flexDirection: "row", gap: 10 },
   buttonWrap: { flex: 1 },

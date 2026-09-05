@@ -43,7 +43,7 @@ export function TrackingMap({ pickup, dropoff, liveMarker }: TrackingMapProps) {
         {liveMarker ? (
           <Marker
             coordinate={{ latitude: liveMarker.point.lat, longitude: liveMarker.point.lng }}
-            pinColor={colors.primary}
+            pinColor={colors.teal}
             title={liveMarker.label}
           />
         ) : null}

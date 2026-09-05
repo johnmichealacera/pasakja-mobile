@@ -76,7 +76,7 @@ export function BookingMap({
           <Marker
             key={d.driverId}
             coordinate={{ latitude: d.lat, longitude: d.lng }}
-            pinColor={d.driverId === selectedDriverId ? colors.primary : colors.warning}
+            pinColor={d.driverId === selectedDriverId ? colors.teal : colors.warning}
             title={d.name}
             description={`${d.vehicleType} · ${d.etaMinutes ?? "?"} min away`}
             onPress={() => onSelectDriver?.(d)}
@@ -88,7 +88,7 @@ export function BookingMap({
             coordinates={routePolyline.map(
               (p): LatLng => ({ latitude: p.lat, longitude: p.lng })
             )}
-            strokeColor={colors.primary}
+            strokeColor={colors.teal}
             strokeWidth={4}
           />
         ) : null}

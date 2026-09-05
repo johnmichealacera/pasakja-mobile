@@ -1,13 +1,23 @@
 import React, { useState } from "react";
-import { Alert, Image, Pressable, StyleSheet, Text, View } from "react-native";
+import { Alert, Pressable, StyleSheet, Text, View } from "react-native";
 import * as ImagePicker from "expo-image-picker";
 import { router } from "expo-router";
+import { Ionicons } from "@expo/vector-icons";
 import { Screen } from "@/components/Screen";
+import { ScreenHeader } from "@/components/ScreenHeader";
 import { Button } from "@/components/Button";
+import { Card } from "@/components/Card";
+import { Avatar } from "@/components/Avatar";
 import { useAuth } from "@/auth/AuthContext";
 import { uploadProfileImage } from "@/api/uploads";
 import { updateProfile } from "@/api/profile";
-import { colors } from "@/theme";
+import { colors, radius, spacing, typography } from "@/theme";
+
+const ROLE_LABEL: Record<string, string> = {
+  PASSENGER: "Passenger",
+  DRIVER: "Driver",
+  ADMIN: "Admin",
+};
 
 export function ProfileScreenBody() {
   const { user, logout } = useAuth();
@@ -46,34 +56,44 @@ export function ProfileScreenBody() {
   }
 
   return (
-    <Screen>
-      <View style={styles.header}>
-        <Pressable onPress={changePhoto} style={styles.avatarWrap}>
-          {avatarUri ? (
-            <Image source={{ uri: avatarUri }} style={styles.avatar} />
-          ) : (
-            <View style={[styles.avatar, styles.avatarPlaceholder]}>
-              <Text style={styles.avatarInitial}>{user?.name?.[0]?.toUpperCase() ?? "?"}</Text>
+    <View style={styles.flex}>
+      <ScreenHeader title="Profile" subtitle="Manage your account" />
+      <Screen edges={["bottom"]}>
+        <View style={styles.avatarSection}>
+          <Pressable onPress={changePhoto} style={styles.avatarWrap}>
+            <Avatar name={user?.name} uri={avatarUri} size={92} />
+            <View style={styles.editBadge}>
+              <Ionicons name="camera" size={14} color="#fff" />
             </View>
-          )}
-          <Text style={styles.changePhoto}>{isUploading ? "Uploading…" : "Change photo"}</Text>
-        </Pressable>
-      </View>
+          </Pressable>
+          <Text style={styles.name}>{user?.name ?? "—"}</Text>
+          <Text style={styles.changePhoto}>{isUploading ? "Uploading…" : "Tap to change photo"}</Text>
+        </View>
 
-      <View style={styles.card}>
-        <InfoRow label="Name" value={user?.name || "—"} />
-        <InfoRow label="Email" value={user?.email || "—"} />
-        <InfoRow label="Role" value={user?.role || "—"} />
-      </View>
+        <Card style={styles.card}>
+          <InfoRow icon="mail-outline" label="Email" value={user?.email || "—"} />
+          <View style={styles.divider} />
+          <InfoRow icon="shield-checkmark-outline" label="Role" value={ROLE_LABEL[user?.role ?? ""] ?? "—"} />
+        </Card>
 
-      <Button title="Sign Out" variant="danger" onPress={handleLogout} />
-    </Screen>
+        <Button title="Sign Out" variant="danger" icon="log-out-outline" onPress={handleLogout} />
+      </Screen>
+    </View>
   );
 }
 
-function InfoRow({ label, value }: { label: string; value: string }) {
+function InfoRow({
+  icon,
+  label,
+  value,
+}: {
+  icon: React.ComponentProps<typeof Ionicons>["name"];
+  label: string;
+  value: string;
+}) {
   return (
     <View style={styles.infoRow}>
+      <Ionicons name={icon} size={18} color={colors.inkFaint} style={styles.infoIcon} />
       <Text style={styles.infoLabel}>{label}</Text>
       <Text style={styles.infoValue}>{value}</Text>
     </View>
@@ -81,29 +101,28 @@ function InfoRow({ label, value }: { label: string; value: string }) {
 }
 
 const styles = StyleSheet.create({
-  header: { alignItems: "center", marginBottom: 24 },
-  avatarWrap: { alignItems: "center" },
-  avatar: { width: 88, height: 88, borderRadius: 44 },
-  avatarPlaceholder: {
-    backgroundColor: colors.primary,
+  flex: { flex: 1, backgroundColor: colors.background },
+  avatarSection: { alignItems: "center", marginTop: -spacing.xxl, marginBottom: spacing.xl },
+  avatarWrap: { position: "relative" },
+  editBadge: {
+    position: "absolute",
+    bottom: 0,
+    right: 0,
+    width: 26,
+    height: 26,
+    borderRadius: radius.full,
+    backgroundColor: colors.teal,
+    borderWidth: 2,
+    borderColor: colors.background,
     alignItems: "center",
     justifyContent: "center",
   },
-  avatarInitial: { color: "#fff", fontSize: 32, fontWeight: "700" },
-  changePhoto: { marginTop: 8, color: colors.primary, fontWeight: "600" },
-  card: {
-    backgroundColor: colors.card,
-    borderRadius: 12,
-    borderWidth: 1,
-    borderColor: colors.border,
-    padding: 16,
-    marginBottom: 24,
-  },
-  infoRow: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    paddingVertical: 8,
-  },
-  infoLabel: { color: colors.muted, fontSize: 14 },
-  infoValue: { color: colors.text, fontSize: 14, fontWeight: "600" },
+  name: { ...typography.title, marginTop: spacing.md },
+  changePhoto: { ...typography.caption, color: colors.teal, marginTop: 2 },
+  card: { marginBottom: spacing.xl },
+  infoRow: { flexDirection: "row", alignItems: "center", paddingVertical: spacing.sm },
+  infoIcon: { marginRight: spacing.md },
+  infoLabel: { ...typography.body, color: colors.inkMuted, flex: 1 },
+  infoValue: { ...typography.bodyStrong },
+  divider: { height: 1, backgroundColor: colors.border },
 });

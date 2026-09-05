@@ -38,7 +38,7 @@ export function DestinationSearchModal({
         <TextInput
           style={styles.search}
           placeholder="Search a place or barangay…"
-          placeholderTextColor={colors.muted}
+          placeholderTextColor={colors.inkMuted}
           value={query}
           onChangeText={setQuery}
         />
@@ -68,8 +68,8 @@ export function DestinationSearchModal({
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: colors.background, paddingTop: 60, paddingHorizontal: 20 },
   header: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", marginBottom: 16 },
-  title: { fontSize: 20, fontWeight: "700", color: colors.text },
-  close: { color: colors.primary, fontWeight: "600" },
+  title: { fontSize: 20, fontWeight: "700", color: colors.ink },
+  close: { color: colors.teal, fontWeight: "600" },
   search: {
     borderWidth: 1,
     borderColor: colors.border,
@@ -77,15 +77,15 @@ const styles = StyleSheet.create({
     paddingHorizontal: 14,
     paddingVertical: 10,
     marginBottom: 12,
-    backgroundColor: colors.card,
-    color: colors.text,
+    backgroundColor: colors.surface,
+    color: colors.ink,
   },
   row: {
     paddingVertical: 12,
     borderBottomWidth: 1,
     borderBottomColor: colors.border,
   },
-  rowName: { color: colors.text, fontWeight: "600" },
-  rowBarangay: { color: colors.muted, fontSize: 12, marginTop: 2 },
-  empty: { color: colors.muted, textAlign: "center", marginTop: 40 },
+  rowName: { color: colors.ink, fontWeight: "600" },
+  rowBarangay: { color: colors.inkMuted, fontSize: 12, marginTop: 2 },
+  empty: { color: colors.inkMuted, textAlign: "center", marginTop: 40 },
 });

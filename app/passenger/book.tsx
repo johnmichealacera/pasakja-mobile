@@ -3,8 +3,11 @@ import { ActivityIndicator, Alert, Pressable, ScrollView, StyleSheet, Switch, Te
 import { router } from "expo-router";
 import * as WebBrowser from "expo-web-browser";
 import * as Linking from "expo-linking";
+import { Ionicons } from "@expo/vector-icons";
 import { Screen } from "@/components/Screen";
 import { Button } from "@/components/Button";
+import { Card } from "@/components/Card";
+import { Avatar } from "@/components/Avatar";
 import { BookingMap } from "@/components/BookingMap";
 import { DestinationSearchModal } from "@/components/DestinationSearchModal";
 import { useCurrentLocation } from "@/hooks/useCurrentLocation";
@@ -17,7 +20,7 @@ import { checkout, attachGcash, pollPaymentStatus } from "@/api/paymongo";
 import { ApiError } from "@/api/client";
 import type { FareEstimate, NearbyDriver, PaymentMethod, RouteResult } from "@/types";
 import type { SocorroPlace } from "@/lib/socorroPlaces";
-import { colors } from "@/theme";
+import { colors, radius, shadow, spacing, typography } from "@/theme";
 
 const MIN_GCASH_CENTAVOS = 2000; // ₱20 — PayMongo checkout's own floor
 
@@ -233,134 +236,158 @@ export default function BookRideScreen() {
         />
       </View>
 
-      <ScrollView style={styles.sheet} contentContainerStyle={styles.sheetContent}>
-        <View style={styles.fieldToggle}>
-          <FieldButton
-            label="📍 Pickup"
-            active={activeField === "pickup"}
-            onPress={() => setActiveField("pickup")}
-          />
-          <FieldButton
-            label="🏁 Dropoff"
-            active={activeField === "dropoff"}
-            onPress={() => setActiveField("dropoff")}
-          />
-        </View>
-        <Text style={styles.hint}>
-          Tap the map (or drag a pin) to set the highlighted point, or search a place below.
-        </Text>
-
-        <AddressRow
-          label="Pickup"
-          address={pickupAddress}
-          onSearch={() => setSearchModalFor("pickup")}
-        />
-        <AddressRow
-          label="Dropoff"
-          address={dropoffAddress}
-          onSearch={() => setSearchModalFor("dropoff")}
-        />
-
-        {isQuoting ? (
-          <View style={styles.quotingRow}>
-            <ActivityIndicator />
-            <Text style={styles.quotingText}>Getting route and fare…</Text>
+      <View style={styles.sheetOuter}>
+        <View style={styles.grabber} />
+        <ScrollView style={styles.sheet} contentContainerStyle={styles.sheetContent}>
+          <View style={styles.fieldToggle}>
+            <FieldButton
+              icon="radio-button-on"
+              label="Pickup"
+              active={activeField === "pickup"}
+              onPress={() => setActiveField("pickup")}
+            />
+            <FieldButton
+              icon="flag"
+              label="Dropoff"
+              active={activeField === "dropoff"}
+              onPress={() => setActiveField("dropoff")}
+            />
           </View>
-        ) : null}
+          <Text style={styles.hint}>
+            Tap the map (or drag a pin) to set the highlighted point, or search a place below.
+          </Text>
 
-        {route && fare ? (
-          <View style={styles.fareCard}>
-            <Text style={styles.fareTitle}>
-              {route.distanceKm.toFixed(1)} km · ~{route.durationMinutes} min
-            </Text>
-            <View style={styles.fareRow}>
-              <Text style={styles.fareLabel}>Trip fare</Text>
-              <Text style={styles.fareValue}>₱{fare.baseFare.toFixed(2)}</Text>
+          <Card style={styles.addressCard}>
+            <AddressRow
+              icon="ellipse"
+              iconColor={colors.emerald}
+              label="Pickup"
+              address={pickupAddress}
+              onSearch={() => setSearchModalFor("pickup")}
+            />
+            <View style={styles.addressDivider} />
+            <AddressRow
+              icon="location"
+              iconColor={colors.coral}
+              label="Dropoff"
+              address={dropoffAddress}
+              onSearch={() => setSearchModalFor("dropoff")}
+            />
+          </Card>
+
+          {isQuoting ? (
+            <View style={styles.quotingRow}>
+              <ActivityIndicator color={colors.teal} />
+              <Text style={styles.quotingText}>Getting route and fare…</Text>
             </View>
-            <View style={styles.fareRow}>
-              <Text style={styles.fareLabel}>Platform fee</Text>
-              <Text style={styles.fareValue}>₱{fare.platformFee.toFixed(2)}</Text>
+          ) : null}
+
+          {route && fare ? (
+            <Card variant="elevated" style={styles.fareCard}>
+              <View style={styles.fareHeaderRow}>
+                <Ionicons name="speedometer-outline" size={16} color={colors.teal} />
+                <Text style={styles.fareTitle}>
+                  {route.distanceKm.toFixed(1)} km · ~{route.durationMinutes} min
+                </Text>
+              </View>
+              <View style={styles.fareRow}>
+                <Text style={styles.fareLabel}>Trip fare</Text>
+                <Text style={styles.fareValue}>₱{fare.baseFare.toFixed(2)}</Text>
+              </View>
+              <View style={styles.fareRow}>
+                <Text style={styles.fareLabel}>Platform fee</Text>
+                <Text style={styles.fareValue}>₱{fare.platformFee.toFixed(2)}</Text>
+              </View>
+              <View style={styles.fareDivider} />
+              <View style={styles.fareRow}>
+                <Text style={styles.fareLabelTotal}>You pay</Text>
+                <Text style={styles.fareValueTotal}>₱{fare.passengerTotal.toFixed(2)}</Text>
+              </View>
+            </Card>
+          ) : null}
+
+          {nearbyDrivers.length > 0 ? (
+            <>
+              <Text style={styles.sectionTitle}>Nearby Drivers ({nearbyDrivers.length})</Text>
+              <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.driverScroll}>
+                {nearbyDrivers.map((d) => {
+                  const active = selectedDriverId === d.driverId;
+                  return (
+                    <Pressable
+                      key={d.driverId}
+                      onPress={() => handleSelectDriver(d)}
+                      style={[styles.driverChip, active && styles.driverChipActive]}
+                    >
+                      <Avatar name={d.name} size={32} />
+                      <Text
+                        style={[styles.driverChipName, active && styles.driverChipTextActive]}
+                        numberOfLines={1}
+                      >
+                        {d.name}
+                      </Text>
+                      <Text
+                        style={[styles.driverChipMeta, active && styles.driverChipTextActive]}
+                        numberOfLines={1}
+                      >
+                        {d.vehicleType} · {d.etaMinutes ?? "?"} min
+                      </Text>
+                    </Pressable>
+                  );
+                })}
+              </ScrollView>
+            </>
+          ) : null}
+
+          <View style={styles.rowBetween}>
+            <View style={styles.sharedRow}>
+              <Ionicons name="people-outline" size={18} color={colors.inkMuted} />
+              <Text style={styles.sectionTitleInline}>Shared ride</Text>
             </View>
-            <View style={styles.fareRow}>
-              <Text style={styles.fareLabelTotal}>You pay</Text>
-              <Text style={styles.fareValueTotal}>₱{fare.passengerTotal.toFixed(2)}</Text>
-            </View>
+            <Switch
+              value={isShared}
+              onValueChange={setIsShared}
+              trackColor={{ false: colors.border, true: colors.teal }}
+              thumbColor="#fff"
+            />
           </View>
-        ) : null}
 
-        {nearbyDrivers.length > 0 ? (
-          <>
-            <Text style={styles.sectionTitle}>Nearby Drivers ({nearbyDrivers.length})</Text>
-            <ScrollView horizontal showsHorizontalScrollIndicator={false}>
-              {nearbyDrivers.map((d) => (
-                <Pressable
-                  key={d.driverId}
-                  onPress={() => handleSelectDriver(d)}
-                  style={[
-                    styles.driverChip,
-                    selectedDriverId === d.driverId && styles.driverChipActive,
-                  ]}
-                >
-                  <Text
-                    style={[
-                      styles.driverChipName,
-                      selectedDriverId === d.driverId && styles.driverChipTextActive,
-                    ]}
-                  >
-                    {d.name}
-                  </Text>
-                  <Text
-                    style={[
-                      styles.driverChipMeta,
-                      selectedDriverId === d.driverId && styles.driverChipTextActive,
-                    ]}
-                  >
-                    {d.vehicleType} · {d.etaMinutes ?? "?"} min
-                  </Text>
-                </Pressable>
-              ))}
-            </ScrollView>
-          </>
-        ) : null}
-
-        <View style={styles.rowBetween}>
-          <Text style={styles.sectionTitle}>Shared ride</Text>
-          <Switch value={isShared} onValueChange={setIsShared} />
-        </View>
-
-        <Text style={styles.label}>Notes for the driver (optional)</Text>
-        <TextInput
-          style={styles.notesInput}
-          value={notes}
-          onChangeText={setNotes}
-          placeholder="e.g. Meet me at the covered court entrance"
-          placeholderTextColor={colors.muted}
-          multiline
-        />
-
-        <Text style={styles.label}>Payment</Text>
-        <View style={styles.fieldToggle}>
-          <FieldButton
-            label="💵 Cash"
-            active={paymentMethod === "CASH"}
-            onPress={() => setPaymentMethod("CASH")}
+          <Text style={styles.label}>Notes for the driver (optional)</Text>
+          <TextInput
+            style={styles.notesInput}
+            value={notes}
+            onChangeText={setNotes}
+            placeholder="e.g. Meet me at the covered court entrance"
+            placeholderTextColor={colors.inkFaint}
+            multiline
           />
-          <FieldButton
-            label="📱 GCash"
-            active={paymentMethod === "ONLINE"}
-            onPress={() => setPaymentMethod("ONLINE")}
-          />
-        </View>
 
-        <Button
-          title={
-            isBooking ? "Booking…" : paymentMethod === "CASH" ? "Confirm Booking" : "Pay with GCash"
-          }
-          onPress={handleConfirm}
-          disabled={!canConfirm}
-          loading={isBooking}
-        />
-      </ScrollView>
+          <Text style={styles.label}>Payment</Text>
+          <View style={styles.fieldToggle}>
+            <FieldButton
+              icon="cash"
+              label="Cash"
+              active={paymentMethod === "CASH"}
+              onPress={() => setPaymentMethod("CASH")}
+            />
+            <FieldButton
+              icon="phone-portrait"
+              label="GCash"
+              active={paymentMethod === "ONLINE"}
+              onPress={() => setPaymentMethod("ONLINE")}
+            />
+          </View>
+
+          <Button
+            title={
+              isBooking ? "Booking…" : paymentMethod === "CASH" ? "Confirm Booking" : "Pay with GCash"
+            }
+            icon={paymentMethod === "CASH" ? "checkmark-circle" : "phone-portrait"}
+            onPress={handleConfirm}
+            disabled={!canConfirm}
+            loading={isBooking}
+          />
+        </ScrollView>
+      </View>
 
       <DestinationSearchModal
         visible={searchModalFor !== null}
@@ -373,44 +400,47 @@ export default function BookRideScreen() {
 }
 
 function FieldButton({
+  icon,
   label,
   active,
   onPress,
 }: {
+  icon: React.ComponentProps<typeof Ionicons>["name"];
   label: string;
   active: boolean;
   onPress: () => void;
 }) {
   return (
-    <Pressable
-      onPress={onPress}
-      style={[styles.fieldButton, active && styles.fieldButtonActive]}
-    >
-      <Text style={[styles.fieldButtonText, active && styles.fieldButtonTextActive]}>
-        {label}
-      </Text>
+    <Pressable onPress={onPress} style={[styles.fieldButton, active && styles.fieldButtonActive]}>
+      <Ionicons name={icon} size={16} color={active ? "#fff" : colors.inkMuted} />
+      <Text style={[styles.fieldButtonText, active && styles.fieldButtonTextActive]}>{label}</Text>
     </Pressable>
   );
 }
 
 function AddressRow({
+  icon,
+  iconColor,
   label,
   address,
   onSearch,
 }: {
+  icon: React.ComponentProps<typeof Ionicons>["name"];
+  iconColor: string;
   label: string;
   address: string;
   onSearch: () => void;
 }) {
   return (
     <View style={styles.addressRow}>
+      <Ionicons name={icon} size={14} color={iconColor} style={styles.addressIcon} />
       <View style={{ flex: 1 }}>
         <Text style={styles.addressLabel}>{label}</Text>
         <Text style={styles.addressValue} numberOfLines={1}>
           {address || "Not set"}
         </Text>
       </View>
-      <Pressable onPress={onSearch}>
+      <Pressable onPress={onSearch} hitSlop={8}>
         <Text style={styles.searchLink}>Search</Text>
       </Pressable>
     </View>
@@ -418,76 +448,91 @@ function AddressRow({
 }
 
 const styles = StyleSheet.create({
-  mapWrap: { height: "42%" },
+  mapWrap: { height: "40%" },
+  sheetOuter: {
+    flex: 1,
+    backgroundColor: colors.background,
+    borderTopLeftRadius: radius.xl,
+    borderTopRightRadius: radius.xl,
+    marginTop: -radius.xl,
+    ...shadow.lg,
+  },
+  grabber: {
+    alignSelf: "center",
+    width: 40,
+    height: 4,
+    borderRadius: radius.full,
+    backgroundColor: colors.borderStrong,
+    marginTop: spacing.sm,
+  },
   sheet: { flex: 1 },
-  sheetContent: { padding: 20, paddingBottom: 40 },
-  fieldToggle: { flexDirection: "row", gap: 10, marginBottom: 10 },
+  sheetContent: { padding: spacing.xl, paddingBottom: 40 },
+  fieldToggle: { flexDirection: "row", gap: spacing.sm, marginBottom: spacing.sm },
   fieldButton: {
     flex: 1,
-    paddingVertical: 10,
-    borderRadius: 10,
-    borderWidth: 1,
-    borderColor: colors.border,
-    alignItems: "center",
-  },
-  fieldButtonActive: { backgroundColor: colors.primary, borderColor: colors.primary },
-  fieldButtonText: { color: colors.text, fontWeight: "600" },
-  fieldButtonTextActive: { color: "#fff" },
-  hint: { fontSize: 12, color: colors.muted, marginBottom: 16 },
-  addressRow: {
     flexDirection: "row",
     alignItems: "center",
+    justifyContent: "center",
+    gap: 6,
     paddingVertical: 10,
-    borderBottomWidth: 1,
-    borderBottomColor: colors.border,
-  },
-  addressLabel: { fontSize: 12, color: colors.muted },
-  addressValue: { fontSize: 14, color: colors.text, fontWeight: "600" },
-  searchLink: { color: colors.primary, fontWeight: "600", marginLeft: 12 },
-  quotingRow: { flexDirection: "row", alignItems: "center", gap: 8, marginTop: 12 },
-  quotingText: { color: colors.muted },
-  fareCard: {
-    backgroundColor: colors.card,
+    borderRadius: radius.md,
     borderWidth: 1,
     borderColor: colors.border,
-    borderRadius: 12,
-    padding: 16,
-    marginTop: 16,
-    marginBottom: 8,
   },
-  fareTitle: { fontWeight: "700", color: colors.text, marginBottom: 10 },
+  fieldButtonActive: { backgroundColor: colors.teal, borderColor: colors.teal },
+  fieldButtonText: { ...typography.bodyStrong, color: colors.inkMuted },
+  fieldButtonTextActive: { color: "#fff" },
+  hint: { ...typography.caption, marginBottom: spacing.md },
+  addressCard: { marginBottom: spacing.md },
+  addressRow: { flexDirection: "row", alignItems: "center" },
+  addressIcon: { marginRight: spacing.md },
+  addressDivider: { height: 1, backgroundColor: colors.border, marginVertical: spacing.sm, marginLeft: 26 },
+  addressLabel: { ...typography.caption },
+  addressValue: { ...typography.bodyStrong, marginTop: 2 },
+  searchLink: { ...typography.bodyStrong, color: colors.teal, marginLeft: spacing.md },
+  quotingRow: { flexDirection: "row", alignItems: "center", gap: spacing.sm, marginBottom: spacing.md },
+  quotingText: { ...typography.caption },
+  fareCard: { marginBottom: spacing.md },
+  fareHeaderRow: { flexDirection: "row", alignItems: "center", gap: 6, marginBottom: spacing.md },
+  fareTitle: { ...typography.bodyStrong },
   fareRow: { flexDirection: "row", justifyContent: "space-between", paddingVertical: 4 },
-  fareLabel: { color: colors.muted },
-  fareValue: { color: colors.text },
-  fareLabelTotal: { color: colors.text, fontWeight: "700", marginTop: 6 },
-  fareValueTotal: { color: colors.text, fontWeight: "700", marginTop: 6 },
-  sectionTitle: { fontSize: 14, fontWeight: "700", color: colors.text, marginTop: 20, marginBottom: 10 },
+  fareLabel: { ...typography.body, color: colors.inkMuted },
+  fareValue: { ...typography.body },
+  fareDivider: { height: 1, backgroundColor: colors.border, marginVertical: spacing.sm },
+  fareLabelTotal: { ...typography.title, fontSize: 15 },
+  fareValueTotal: { ...typography.title, fontSize: 17, color: colors.teal },
+  sectionTitle: { ...typography.title, fontSize: 14, marginTop: spacing.lg, marginBottom: spacing.md },
+  sectionTitleInline: { ...typography.bodyStrong },
+  driverScroll: { marginBottom: spacing.sm },
   driverChip: {
     borderWidth: 1,
     borderColor: colors.border,
-    borderRadius: 10,
-    padding: 10,
-    marginRight: 10,
-    minWidth: 120,
+    borderRadius: radius.lg,
+    padding: spacing.md,
+    marginRight: spacing.sm,
+    width: 130,
+    alignItems: "center",
   },
-  driverChipActive: { backgroundColor: colors.primary, borderColor: colors.primary },
-  driverChipName: { fontWeight: "600", color: colors.text },
-  driverChipMeta: { fontSize: 12, color: colors.muted, marginTop: 2 },
+  driverChipActive: { backgroundColor: colors.teal, borderColor: colors.teal },
+  driverChipName: { ...typography.bodyStrong, marginTop: spacing.sm, textAlign: "center" },
+  driverChipMeta: { ...typography.caption, marginTop: 2, textAlign: "center" },
   driverChipTextActive: { color: "#fff" },
   rowBetween: {
     flexDirection: "row",
     justifyContent: "space-between",
     alignItems: "center",
-    marginTop: 20,
+    marginTop: spacing.lg,
   },
-  label: { fontSize: 14, fontWeight: "600", color: colors.text, marginBottom: 8, marginTop: 12 },
+  sharedRow: { flexDirection: "row", alignItems: "center", gap: spacing.sm },
+  label: { ...typography.bodyStrong, marginBottom: spacing.sm, marginTop: spacing.md },
   notesInput: {
     borderWidth: 1,
     borderColor: colors.border,
-    borderRadius: 10,
-    padding: 12,
-    color: colors.text,
+    borderRadius: radius.md,
+    padding: spacing.md,
+    color: colors.ink,
     minHeight: 60,
-    marginBottom: 12,
+    marginBottom: spacing.md,
+    backgroundColor: colors.surface,
   },
 });

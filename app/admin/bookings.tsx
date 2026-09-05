@@ -1,19 +1,15 @@
 import React, { useCallback, useState } from "react";
 import { Pressable, RefreshControl, ScrollView, StyleSheet, Text, View } from "react-native";
 import { useFocusEffect } from "expo-router";
+import { Ionicons } from "@expo/vector-icons";
 import { Screen } from "@/components/Screen";
+import { Card } from "@/components/Card";
+import { Badge } from "@/components/Badge";
+import { EmptyState } from "@/components/EmptyState";
 import { listBookings } from "@/api/bookings";
 import type { Booking, BookingStatus } from "@/types";
-import { colors } from "@/theme";
-
-const STATUS_COLORS: Record<BookingStatus, string> = {
-  PENDING: colors.warning,
-  ACCEPTED: colors.primary,
-  PICKED_UP: colors.primary,
-  IN_PROGRESS: colors.primary,
-  COMPLETED: colors.success,
-  CANCELLED: colors.danger,
-};
+import { BOOKING_STATUS, PAYMENT_METHOD_ICON } from "@/lib/statusPresentation";
+import { colors, radius, spacing, typography } from "@/theme";
 
 const FILTERS: { label: string; value: BookingStatus | undefined }[] = [
   { label: "All", value: undefined },
@@ -59,53 +55,52 @@ export default function AdminBookingsScreen() {
         ))}
       </ScrollView>
 
-      {bookings.map((b) => (
-        <View key={b.id} style={styles.card}>
-          <View style={styles.rowBetween}>
-            <Text style={[styles.status, { color: STATUS_COLORS[b.status] }]}>{b.status}</Text>
-            <Text style={styles.payment}>{b.paymentMethod}</Text>
-          </View>
-          <Text style={styles.name}>
-            {b.passenger?.user?.name ?? "Passenger"} → {b.driver?.user?.name ?? "Unassigned"}
-          </Text>
-          <Text style={styles.address} numberOfLines={1}>
-            {b.pickupAddress} → {b.dropoffAddress}
-          </Text>
-          <Text style={styles.fare}>{b.fare != null ? `₱${Number(b.fare).toFixed(2)}` : "—"}</Text>
-        </View>
-      ))}
+      {bookings.map((b) => {
+        const status = BOOKING_STATUS[b.status];
+        return (
+          <Card key={b.id} style={styles.card}>
+            <View style={styles.rowBetween}>
+              <Badge {...status} />
+              <View style={styles.paymentBadge}>
+                <Ionicons name={PAYMENT_METHOD_ICON[b.paymentMethod]} size={13} color={colors.inkMuted} />
+                <Text style={styles.paymentText}>{b.paymentMethod === "CASH" ? "Cash" : "GCash"}</Text>
+              </View>
+            </View>
+            <Text style={styles.name}>
+              {b.passenger?.user?.name ?? "Passenger"} → {b.driver?.user?.name ?? "Unassigned"}
+            </Text>
+            <Text style={styles.address} numberOfLines={1}>
+              {b.pickupAddress} → {b.dropoffAddress}
+            </Text>
+            <Text style={styles.fare}>{b.fare != null ? `₱${Number(b.fare).toFixed(2)}` : "—"}</Text>
+          </Card>
+        );
+      })}
       {!isLoading && bookings.length === 0 ? (
-        <Text style={{ color: colors.muted }}>No bookings match this filter.</Text>
+        <EmptyState icon="receipt-outline" title="No bookings" subtitle="No bookings match this filter." />
       ) : null}
     </Screen>
   );
 }
 
 const styles = StyleSheet.create({
-  filterRow: { marginBottom: 16, flexGrow: 0 },
+  filterRow: { marginBottom: spacing.lg, flexGrow: 0 },
   filterChip: {
-    paddingHorizontal: 14,
-    paddingVertical: 8,
-    borderRadius: 20,
+    paddingHorizontal: spacing.md,
+    paddingVertical: spacing.sm,
+    borderRadius: radius.full,
     borderWidth: 1,
     borderColor: colors.border,
-    marginRight: 8,
+    marginRight: spacing.sm,
   },
-  filterChipActive: { backgroundColor: colors.primary, borderColor: colors.primary },
-  filterText: { color: colors.text, fontWeight: "600", fontSize: 13 },
+  filterChipActive: { backgroundColor: colors.teal, borderColor: colors.teal },
+  filterText: { ...typography.bodyStrong, fontSize: 13, color: colors.inkMuted },
   filterTextActive: { color: "#fff" },
-  card: {
-    backgroundColor: colors.card,
-    borderWidth: 1,
-    borderColor: colors.border,
-    borderRadius: 12,
-    padding: 14,
-    marginBottom: 10,
-  },
-  rowBetween: { flexDirection: "row", justifyContent: "space-between", marginBottom: 6 },
-  status: { fontWeight: "700" },
-  payment: { color: colors.muted, fontSize: 12, fontWeight: "600" },
-  name: { color: colors.text, fontWeight: "600", marginBottom: 2 },
-  address: { color: colors.muted, fontSize: 13, marginBottom: 4 },
-  fare: { color: colors.text, fontWeight: "700" },
+  card: { marginBottom: spacing.md },
+  rowBetween: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", marginBottom: spacing.sm },
+  paymentBadge: { flexDirection: "row", alignItems: "center", gap: 4 },
+  paymentText: { ...typography.caption, fontWeight: "600" },
+  name: { ...typography.bodyStrong, marginBottom: 2 },
+  address: { ...typography.caption, marginBottom: spacing.sm },
+  fare: { ...typography.title, fontSize: 15 },
 });

@@ -1,9 +1,14 @@
 import React, { useCallback, useEffect, useRef, useState } from "react";
-import { Alert, RefreshControl, ScrollView, StyleSheet, Text, View } from "react-native";
+import { Alert, Linking, Pressable, RefreshControl, ScrollView, StyleSheet, Text, View } from "react-native";
 import * as Location from "expo-location";
 import { useFocusEffect } from "expo-router";
+import { Ionicons } from "@expo/vector-icons";
 import { Screen } from "@/components/Screen";
 import { Button } from "@/components/Button";
+import { Card } from "@/components/Card";
+import { Avatar } from "@/components/Avatar";
+import { Badge } from "@/components/Badge";
+import { EmptyState } from "@/components/EmptyState";
 import { TrackingMap } from "@/components/TrackingMap";
 import { usePolling } from "@/hooks/usePolling";
 import { listBookings, patchBooking, getPassengerLocation } from "@/api/bookings";
@@ -12,20 +17,12 @@ import { postDriverLocation } from "@/api/location";
 import { getRoute } from "@/api/maps";
 import { ApiError } from "@/api/client";
 import type { Booking, BookingStatus } from "@/types";
-import { colors } from "@/theme";
+import { BOOKING_STATUS } from "@/lib/statusPresentation";
+import { colors, radius, spacing, typography } from "@/theme";
 
 const ACTIVE_STATUSES: BookingStatus[] = ["ACCEPTED", "PICKED_UP", "IN_PROGRESS"];
 const BROADCAST_INTERVAL_MS = 10000;
 const PASSENGER_POLL_MS = 10000;
-
-const STATUS_LABEL: Record<BookingStatus, string> = {
-  PENDING: "Pending",
-  ACCEPTED: "Accepted — head to pickup",
-  PICKED_UP: "Passenger picked up",
-  IN_PROGRESS: "Trip in progress",
-  COMPLETED: "Completed",
-  CANCELLED: "Cancelled",
-};
 
 export default function DriverTripScreen() {
   const [trip, setTrip] = useState<Booking | null>(null);
@@ -143,9 +140,11 @@ export default function DriverTripScreen() {
     return (
       <Screen refreshControl={<RefreshControl refreshing={isLoading} onRefresh={load} />}>
         <Text style={styles.title}>Active Trip</Text>
-        <Text style={{ color: colors.muted }}>
-          No active trip — accept a request from the Requests tab to get started.
-        </Text>
+        <EmptyState
+          icon="navigate-outline"
+          title="No active trip"
+          subtitle="Accept a request from the Requests tab to get started."
+        />
       </Screen>
     );
   }
@@ -171,46 +170,70 @@ export default function DriverTripScreen() {
             />
           </View>
 
-          <ScrollView style={styles.sheet} contentContainerStyle={styles.sheetContent}>
-          <Text style={styles.statusBadge}>{STATUS_LABEL[trip.status]}</Text>
+          <View style={styles.sheetOuter}>
+            <View style={styles.grabber} />
+            <ScrollView style={styles.sheet} contentContainerStyle={styles.sheetContent}>
+              <Badge {...BOOKING_STATUS[trip.status]} />
 
-          <View style={styles.card}>
-            <Text style={styles.label}>Passenger</Text>
-            <Text style={styles.value}>{trip.passenger?.user?.name ?? "Passenger"}</Text>
-            {trip.passenger?.user?.phone ? (
-              <Text style={styles.subvalue}>{trip.passenger.user.phone}</Text>
-            ) : null}
+              <Card style={styles.passengerCard}>
+                <Avatar name={trip.passenger?.user?.name} uri={trip.passenger?.user?.profileImage} size={44} />
+                <View style={styles.passengerTextCol}>
+                  <Text style={styles.value}>{trip.passenger?.user?.name ?? "Passenger"}</Text>
+                  {trip.passenger?.user?.phone ? (
+                    <Text style={styles.subvalue}>{trip.passenger.user.phone}</Text>
+                  ) : null}
+                </View>
+                {trip.passenger?.user?.phone ? (
+                  <Pressable
+                    onPress={() => Linking.openURL(`tel:${trip.passenger!.user.phone}`)}
+                    style={styles.callButton}
+                  >
+                    <Ionicons name="call" size={18} color={colors.teal} />
+                  </Pressable>
+                ) : null}
+              </Card>
+
+              <Card style={styles.routeCard}>
+                <View style={styles.routeRow}>
+                  <Ionicons name="ellipse" size={10} color={colors.emerald} />
+                  <View style={styles.routeTextCol}>
+                    <Text style={styles.label}>Pickup</Text>
+                    <Text style={styles.value}>{trip.pickupAddress}</Text>
+                  </View>
+                </View>
+                <View style={styles.routeConnector} />
+                <View style={styles.routeRow}>
+                  <Ionicons name="location" size={13} color={colors.coral} />
+                  <View style={styles.routeTextCol}>
+                    <Text style={styles.label}>Dropoff</Text>
+                    <Text style={styles.value}>{trip.dropoffAddress}</Text>
+                  </View>
+                </View>
+              </Card>
+
+              {trip.notes ? (
+                <Card style={styles.notesCard}>
+                  <Ionicons name="chatbubble-ellipses-outline" size={16} color={colors.inkFaint} />
+                  <Text style={styles.notesText}>{trip.notes}</Text>
+                </Card>
+              ) : null}
+
+              <View style={styles.actions}>
+                {trip.status === "ACCEPTED" ? (
+                  <>
+                    <Button title="Confirm Pickup" icon="checkmark-circle" onPress={() => advance("PICKED_UP")} loading={isActing} />
+                    <Button title="Release Booking" variant="outline" onPress={handleRelease} disabled={isActing} />
+                  </>
+                ) : null}
+                {trip.status === "PICKED_UP" ? (
+                  <Button title="Start Trip" icon="play-circle" onPress={() => advance("IN_PROGRESS")} loading={isActing} />
+                ) : null}
+                {trip.status === "IN_PROGRESS" ? (
+                  <Button title="Complete Trip" icon="flag" onPress={handleComplete} loading={isActing} />
+                ) : null}
+              </View>
+            </ScrollView>
           </View>
-
-          <View style={styles.card}>
-            <Text style={styles.label}>Pickup</Text>
-            <Text style={styles.value}>{trip.pickupAddress}</Text>
-            <Text style={[styles.label, { marginTop: 10 }]}>Dropoff</Text>
-            <Text style={styles.value}>{trip.dropoffAddress}</Text>
-          </View>
-
-          {trip.notes ? (
-            <View style={styles.card}>
-              <Text style={styles.label}>Notes</Text>
-              <Text style={styles.value}>{trip.notes}</Text>
-            </View>
-          ) : null}
-
-          <View style={{ gap: 10, marginTop: 12 }}>
-            {trip.status === "ACCEPTED" ? (
-              <>
-                <Button title="Confirm Pickup" onPress={() => advance("PICKED_UP")} loading={isActing} />
-                <Button title="Release Booking" variant="outline" onPress={handleRelease} disabled={isActing} />
-              </>
-            ) : null}
-            {trip.status === "PICKED_UP" ? (
-              <Button title="Start Trip" onPress={() => advance("IN_PROGRESS")} loading={isActing} />
-            ) : null}
-            {trip.status === "IN_PROGRESS" ? (
-              <Button title="Complete Trip" onPress={handleComplete} loading={isActing} />
-            ) : null}
-          </View>
-          </ScrollView>
         </>
       ) : null}
     </Screen>
@@ -218,30 +241,43 @@ export default function DriverTripScreen() {
 }
 
 const styles = StyleSheet.create({
-  title: { fontSize: 22, fontWeight: "700", color: colors.text, marginBottom: 12 },
+  title: { ...typography.display, fontSize: 22, marginBottom: spacing.lg },
   mapWrap: { height: "40%" },
+  sheetOuter: {
+    flex: 1,
+    backgroundColor: colors.background,
+    borderTopLeftRadius: radius.xl,
+    borderTopRightRadius: radius.xl,
+    marginTop: -radius.xl,
+  },
+  grabber: {
+    alignSelf: "center",
+    width: 40,
+    height: 4,
+    borderRadius: radius.full,
+    backgroundColor: colors.borderStrong,
+    marginTop: spacing.sm,
+  },
   sheet: { flex: 1 },
-  sheetContent: { padding: 20, paddingBottom: 40 },
-  statusBadge: {
-    alignSelf: "flex-start",
-    backgroundColor: colors.primary,
-    color: "#fff",
-    fontWeight: "700",
-    fontSize: 13,
-    paddingHorizontal: 12,
-    paddingVertical: 6,
-    borderRadius: 8,
-    marginBottom: 16,
+  sheetContent: { padding: spacing.xl, paddingBottom: 40, gap: spacing.md },
+  passengerCard: { flexDirection: "row", alignItems: "center", gap: spacing.md },
+  passengerTextCol: { flex: 1 },
+  callButton: {
+    width: 40,
+    height: 40,
+    borderRadius: radius.full,
+    backgroundColor: colors.surfaceMuted,
+    alignItems: "center",
+    justifyContent: "center",
   },
-  card: {
-    backgroundColor: colors.card,
-    borderWidth: 1,
-    borderColor: colors.border,
-    borderRadius: 12,
-    padding: 14,
-    marginBottom: 12,
-  },
-  label: { fontSize: 12, color: colors.muted },
-  value: { fontSize: 15, color: colors.text, fontWeight: "600", marginTop: 2 },
-  subvalue: { fontSize: 13, color: colors.muted, marginTop: 2 },
+  routeCard: {},
+  routeRow: { flexDirection: "row", alignItems: "flex-start", gap: spacing.md },
+  routeConnector: { width: 1, height: 14, backgroundColor: colors.border, marginLeft: 4, marginVertical: 2 },
+  routeTextCol: { flex: 1 },
+  notesCard: { flexDirection: "row", alignItems: "center", gap: spacing.sm },
+  notesText: { ...typography.body, flex: 1 },
+  label: { ...typography.caption },
+  value: { ...typography.bodyStrong, marginTop: 2 },
+  subvalue: { ...typography.caption, marginTop: 2 },
+  actions: { gap: spacing.sm, marginTop: spacing.sm },
 });

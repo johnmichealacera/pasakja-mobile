@@ -1,19 +1,36 @@
-import React, { useCallback, useState } from "react";
-import { Alert, RefreshControl, StyleSheet, Switch, Text, View } from "react-native";
+import React, { useCallback, useEffect, useRef, useState } from "react";
+import { Alert, Animated, RefreshControl, StyleSheet, Switch, Text, View } from "react-native";
 import { useFocusEffect } from "expo-router";
+import { Ionicons } from "@expo/vector-icons";
 import { Screen } from "@/components/Screen";
+import { ScreenHeader } from "@/components/ScreenHeader";
+import { Card } from "@/components/Card";
+import { StatTile } from "@/components/StatTile";
+import { EmptyState } from "@/components/EmptyState";
 import { useAuth } from "@/auth/AuthContext";
 import { useDriverProfile } from "@/auth/DriverProfileContext";
 import { useDriverAvailability } from "@/hooks/useDriverAvailability";
 import { listBookings } from "@/api/bookings";
 import type { Booking } from "@/types";
-import { colors } from "@/theme";
+import { BOOKING_STATUS, DRIVER_STATUS } from "@/lib/statusPresentation";
+import { colors, radius, spacing, typography } from "@/theme";
 
-const STATUS_COPY: Record<string, { label: string; tone: string }> = {
-  PENDING: { label: "Verification pending — an admin needs to approve your documents.", tone: colors.warning },
-  VERIFIED: { label: "You're verified and can accept rides.", tone: colors.success },
-  SUSPENDED: { label: "Your account is suspended. Contact an admin.", tone: colors.danger },
-};
+function LivePulseDot() {
+  const pulse = useRef(new Animated.Value(0)).current;
+  useEffect(() => {
+    const loop = Animated.loop(Animated.timing(pulse, { toValue: 1, duration: 1200, useNativeDriver: true }));
+    loop.start();
+    return () => loop.stop();
+  }, [pulse]);
+  const scale = pulse.interpolate({ inputRange: [0, 1], outputRange: [1, 2.2] });
+  const opacity = pulse.interpolate({ inputRange: [0, 1], outputRange: [0.5, 0] });
+  return (
+    <View style={styles.pulseWrap}>
+      <Animated.View style={[styles.pulseRing, { transform: [{ scale }], opacity }]} />
+      <View style={styles.pulseDot} />
+    </View>
+  );
+}
 
 export default function DriverHomeScreen() {
   const { user } = useAuth();
@@ -45,112 +62,115 @@ export default function DriverHomeScreen() {
   }
 
   const completed = bookings.filter((b) => b.status === "COMPLETED").length;
-  const statusCopy = driver ? STATUS_COPY[driver.status] : null;
+  const statusInfo = driver ? DRIVER_STATUS[driver.status] : null;
 
   return (
-    <Screen refreshControl={<RefreshControl refreshing={isLoading} onRefresh={load} />}>
-      <Text style={styles.greeting}>Hi, {user?.name?.split(" ")[0] ?? "driver"} 👋</Text>
-
-      {statusCopy ? (
-        <View style={[styles.statusCard, { borderColor: statusCopy.tone }]}>
-          <Text style={[styles.statusText, { color: statusCopy.tone }]}>{statusCopy.label}</Text>
-        </View>
-      ) : null}
-
-      {driver?.status === "VERIFIED" ? (
-        <View style={styles.availabilityCard}>
-          <View>
-            <Text style={styles.availabilityLabel}>
-              {driver.isAvailable ? "You're online" : "You're offline"}
-            </Text>
-            <Text style={styles.availabilityHint}>
-              {driver.isAvailable
-                ? "Passengers can see you and send requests."
-                : "Go online to start receiving ride requests."}
-            </Text>
+    <View style={styles.flex}>
+      <ScreenHeader
+        title={`Hi, ${user?.name?.split(" ")[0] ?? "driver"}`}
+        subtitle={driver?.status === "VERIFIED" ? "Ready to earn today?" : statusInfo?.label}
+      >
+        {driver?.status === "VERIFIED" ? (
+          <View style={styles.availabilityCard}>
+            <View style={styles.availabilityLeft}>
+              {driver.isAvailable ? <LivePulseDot /> : <View style={styles.offlineDot} />}
+              <View>
+                <Text style={styles.availabilityLabel}>
+                  {driver.isAvailable ? "You're online" : "You're offline"}
+                </Text>
+                <Text style={styles.availabilityHint}>
+                  {driver.isAvailable ? "Visible to nearby passengers" : "Go online to get requests"}
+                </Text>
+              </View>
+            </View>
+            <Switch
+              value={driver.isAvailable}
+              onValueChange={handleToggle}
+              disabled={isToggling || isDriverLoading}
+              trackColor={{ false: "rgba(255,255,255,0.3)", true: colors.amber }}
+              thumbColor="#fff"
+            />
           </View>
-          <Switch
-            value={driver.isAvailable}
-            onValueChange={handleToggle}
-            disabled={isToggling || isDriverLoading}
-          />
+        ) : null}
+      </ScreenHeader>
+
+      <Screen edges={["bottom"]} refreshControl={<RefreshControl refreshing={isLoading} onRefresh={load} />}>
+        {statusInfo && driver?.status !== "VERIFIED" ? (
+          <Card style={[styles.statusCard, { borderColor: statusInfo.color }]}>
+            <Ionicons name={statusInfo.icon} size={18} color={statusInfo.color} />
+            <Text style={[styles.statusText, { color: statusInfo.color }]}>{statusInfo.label}</Text>
+          </Card>
+        ) : null}
+
+        <View style={styles.statsRow}>
+          <StatTile icon="receipt-outline" value={bookings.length} label="Total Trips" tone="teal" />
+          <StatTile icon="checkmark-done-outline" value={completed} label="Completed" tone="emerald" />
         </View>
-      ) : null}
 
-      <View style={styles.statsRow}>
-        <Stat label="Total Trips" value={bookings.length} />
-        <Stat label="Completed" value={completed} />
-      </View>
-
-      <Text style={styles.sectionTitle}>Recent Trips</Text>
-      {bookings.slice(0, 5).map((b) => (
-        <View key={b.id} style={styles.tripRow}>
-          <Text style={styles.tripAddress} numberOfLines={1}>
-            {b.pickupAddress} → {b.dropoffAddress}
-          </Text>
-          <Text style={styles.tripStatus}>{b.status}</Text>
-        </View>
-      ))}
-      {!isLoading && bookings.length === 0 ? (
-        <Text style={{ color: colors.muted }}>No trips yet.</Text>
-      ) : null}
-    </Screen>
-  );
-}
-
-function Stat({ label, value }: { label: string; value: number }) {
-  return (
-    <View style={styles.stat}>
-      <Text style={styles.statValue}>{value}</Text>
-      <Text style={styles.statLabel}>{label}</Text>
+        <Text style={styles.sectionTitle}>Recent Trips</Text>
+        {bookings.slice(0, 5).map((b) => {
+          const status = BOOKING_STATUS[b.status];
+          return (
+            <Card key={b.id} style={styles.tripRow}>
+              <View style={[styles.tripIconWrap, { backgroundColor: status.bg }]}>
+                <Ionicons name={status.icon} size={16} color={status.color} />
+              </View>
+              <View style={styles.tripTextCol}>
+                <Text style={styles.tripAddress} numberOfLines={1}>
+                  {b.pickupAddress} → {b.dropoffAddress}
+                </Text>
+                <Text style={[styles.tripStatusLabel, { color: status.color }]}>{status.label}</Text>
+              </View>
+            </Card>
+          );
+        })}
+        {!isLoading && bookings.length === 0 ? (
+          <EmptyState icon="car-outline" title="No trips yet" subtitle="Go online to start receiving ride requests." />
+        ) : null}
+      </Screen>
     </View>
   );
 }
 
 const styles = StyleSheet.create({
-  greeting: { fontSize: 24, fontWeight: "700", color: colors.text, marginBottom: 16 },
-  statusCard: {
-    backgroundColor: colors.card,
-    borderWidth: 1,
-    borderRadius: 12,
-    padding: 14,
-    marginBottom: 16,
-  },
-  statusText: { fontSize: 13, fontWeight: "600" },
+  flex: { flex: 1, backgroundColor: colors.background },
   availabilityCard: {
     flexDirection: "row",
     justifyContent: "space-between",
     alignItems: "center",
-    backgroundColor: colors.card,
-    borderWidth: 1,
-    borderColor: colors.border,
-    borderRadius: 12,
-    padding: 16,
-    marginBottom: 20,
-    gap: 12,
+    backgroundColor: "rgba(255,255,255,0.16)",
+    borderRadius: radius.lg,
+    padding: spacing.md,
+    marginTop: spacing.lg,
+    gap: spacing.md,
   },
-  availabilityLabel: { fontSize: 16, fontWeight: "700", color: colors.text },
-  availabilityHint: { fontSize: 12, color: colors.muted, marginTop: 2, maxWidth: 220 },
-  statsRow: { flexDirection: "row", gap: 10, marginBottom: 24 },
-  stat: {
-    flex: 1,
-    backgroundColor: colors.card,
-    borderWidth: 1,
-    borderColor: colors.border,
-    borderRadius: 12,
-    paddingVertical: 14,
-    alignItems: "center",
-  },
-  statValue: { fontSize: 20, fontWeight: "700", color: colors.text },
-  statLabel: { fontSize: 12, color: colors.muted, marginTop: 2 },
-  sectionTitle: { fontSize: 16, fontWeight: "700", color: colors.text, marginBottom: 10 },
-  tripRow: {
+  availabilityLeft: { flexDirection: "row", alignItems: "center", gap: spacing.md, flex: 1 },
+  pulseWrap: { width: 14, height: 14, alignItems: "center", justifyContent: "center" },
+  pulseRing: { position: "absolute", width: 14, height: 14, borderRadius: radius.full, backgroundColor: colors.amber },
+  pulseDot: { width: 10, height: 10, borderRadius: radius.full, backgroundColor: colors.amber },
+  offlineDot: { width: 10, height: 10, borderRadius: radius.full, backgroundColor: "rgba(255,255,255,0.4)" },
+  availabilityLabel: { ...typography.subtitle, color: "#fff" },
+  availabilityHint: { ...typography.caption, color: "rgba(255,255,255,0.75)", marginTop: 2 },
+  statusCard: {
     flexDirection: "row",
-    justifyContent: "space-between",
-    paddingVertical: 10,
-    borderBottomWidth: 1,
-    borderBottomColor: colors.border,
+    alignItems: "center",
+    gap: spacing.sm,
+    borderWidth: 1,
+    marginTop: spacing.xl,
+    marginBottom: spacing.md,
   },
-  tripAddress: { color: colors.text, flex: 1, marginRight: 8 },
-  tripStatus: { color: colors.muted, fontSize: 12, fontWeight: "600" },
+  statusText: { ...typography.bodyStrong, flex: 1 },
+  statsRow: { flexDirection: "row", gap: spacing.sm, marginTop: spacing.xl, marginBottom: spacing.xl },
+  sectionTitle: { ...typography.title, fontSize: 16, marginBottom: spacing.md },
+  tripRow: { flexDirection: "row", alignItems: "center", gap: spacing.md, marginBottom: spacing.sm },
+  tripIconWrap: {
+    width: 36,
+    height: 36,
+    borderRadius: radius.full,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  tripTextCol: { flex: 1 },
+  tripAddress: { ...typography.bodyStrong },
+  tripStatusLabel: { ...typography.caption, marginTop: 2, fontWeight: "700" },
 });

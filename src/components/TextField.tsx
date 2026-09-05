@@ -1,39 +1,50 @@
 import React from "react";
 import { StyleSheet, Text, TextInput, TextInputProps, View } from "react-native";
-import { colors } from "@/theme";
+import { Ionicons } from "@expo/vector-icons";
+import { colors, radius, spacing, typography } from "@/theme";
 
 interface TextFieldProps extends TextInputProps {
   label: string;
   error?: string;
+  icon?: React.ComponentProps<typeof Ionicons>["name"];
 }
 
-export function TextField({ label, error, style, ...rest }: TextFieldProps) {
+export function TextField({ label, error, icon, style, ...rest }: TextFieldProps) {
   return (
     <View style={styles.container}>
       <Text style={styles.label}>{label}</Text>
-      <TextInput
-        style={[styles.input, error && styles.inputError, style]}
-        placeholderTextColor={colors.muted}
-        {...rest}
-      />
-      {error ? <Text style={styles.error}>{error}</Text> : null}
+      <View style={[styles.inputWrap, error && styles.inputError]}>
+        {icon ? <Ionicons name={icon} size={18} color={colors.inkFaint} style={styles.icon} /> : null}
+        <TextInput
+          style={[styles.input, style]}
+          placeholderTextColor={colors.inkFaint}
+          {...rest}
+        />
+      </View>
+      {error ? <Text style={styles.errorText}>{error}</Text> : null}
     </View>
   );
 }
 
 const styles = StyleSheet.create({
-  container: { marginBottom: 16 },
-  label: { fontSize: 14, fontWeight: "600", color: colors.text, marginBottom: 6 },
-  input: {
+  container: { marginBottom: spacing.lg },
+  label: { ...typography.bodyStrong, marginBottom: 6 },
+  inputWrap: {
+    flexDirection: "row",
+    alignItems: "center",
     borderWidth: 1,
     borderColor: colors.border,
-    borderRadius: 10,
-    paddingHorizontal: 14,
+    borderRadius: radius.md,
+    backgroundColor: colors.surface,
+    paddingHorizontal: spacing.md,
+  },
+  icon: { marginRight: spacing.sm },
+  inputError: { borderColor: colors.danger },
+  input: {
+    flex: 1,
     paddingVertical: 12,
     fontSize: 15,
-    color: colors.text,
-    backgroundColor: colors.card,
+    color: colors.ink,
   },
-  inputError: { borderColor: colors.danger },
-  error: { color: colors.danger, fontSize: 12, marginTop: 4 },
+  errorText: { color: colors.danger, fontSize: 12, marginTop: 4 },
 });

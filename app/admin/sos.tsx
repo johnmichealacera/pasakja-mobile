@@ -1,13 +1,16 @@
 import React, { useCallback, useState } from "react";
 import { Alert, Linking, RefreshControl, StyleSheet, Text, View } from "react-native";
 import { useFocusEffect } from "expo-router";
+import { Ionicons } from "@expo/vector-icons";
 import { Screen } from "@/components/Screen";
 import { Button } from "@/components/Button";
+import { Card } from "@/components/Card";
+import { EmptyState } from "@/components/EmptyState";
 import { listSosAlerts, resolveSos } from "@/api/sos";
 import { listBookings, resolveDispute } from "@/api/bookings";
 import { ApiError } from "@/api/client";
 import type { Booking, SosAlert } from "@/types";
-import { colors } from "@/theme";
+import { colors, spacing, typography } from "@/theme";
 
 export default function AdminSosScreen() {
   const [alerts, setAlerts] = useState<SosAlert[]>([]);
@@ -56,29 +59,40 @@ export default function AdminSosScreen() {
 
   return (
     <Screen refreshControl={<RefreshControl refreshing={isLoading} onRefresh={load} />}>
-      <Text style={styles.sectionTitle}>SOS — Unresolved ({unresolved.length})</Text>
+      <Text style={styles.sectionTitle}>🚨 Unresolved SOS ({unresolved.length})</Text>
       {unresolved.map((a) => (
-        <View key={a.id} style={styles.alertCard}>
-          <Text style={styles.alertMessage}>{a.message || "No message provided"}</Text>
+        <Card key={a.id} style={styles.alertCard}>
+          <View style={styles.alertHeaderRow}>
+            <Ionicons name="warning" size={16} color={colors.coral} />
+            <Text style={styles.alertMessage}>{a.message || "No message provided"}</Text>
+          </View>
           <Text style={styles.alertMeta}>{new Date(a.createdAt).toLocaleString()}</Text>
           <View style={styles.rowGap}>
-            <Button
-              title="Open in Maps"
-              variant="outline"
-              onPress={() => Linking.openURL(`https://www.google.com/maps?q=${a.lat},${a.lng}`)}
-            />
-            <Button title="Mark Resolved" onPress={() => handleResolveSos(a.id)} />
+            <View style={{ flex: 1 }}>
+              <Button
+                title="Open in Maps"
+                variant="outline"
+                icon="map-outline"
+                onPress={() => Linking.openURL(`https://www.google.com/maps?q=${a.lat},${a.lng}`)}
+              />
+            </View>
+            <View style={{ flex: 1 }}>
+              <Button title="Mark Resolved" icon="checkmark-circle" onPress={() => handleResolveSos(a.id)} />
+            </View>
           </View>
-        </View>
+        </Card>
       ))}
       {!isLoading && unresolved.length === 0 ? (
-        <Text style={{ color: colors.muted, marginBottom: 20 }}>No active SOS alerts.</Text>
+        <EmptyState icon="shield-checkmark-outline" title="No active SOS alerts" />
       ) : null}
 
       <Text style={styles.sectionTitle}>Refund Disputes ({disputes.length})</Text>
       {disputes.map((b) => (
-        <View key={b.id} style={styles.disputeCard}>
-          <Text style={styles.alertMessage}>{b.disputeReason || "No reason given"}</Text>
+        <Card key={b.id} style={styles.disputeCard}>
+          <View style={styles.alertHeaderRow}>
+            <Ionicons name="alert-circle" size={16} color={colors.amberDark} />
+            <Text style={styles.alertMessage}>{b.disputeReason || "No reason given"}</Text>
+          </View>
           <Text style={styles.alertMeta}>
             {b.passenger?.user?.name ?? "Passenger"} · ₱{b.fare != null ? Number(b.fare).toFixed(2) : "—"}
           </Text>
@@ -99,44 +113,37 @@ export default function AdminSosScreen() {
               />
             </View>
           </View>
-        </View>
+        </Card>
       ))}
       {!isLoading && disputes.length === 0 ? (
-        <Text style={{ color: colors.muted, marginBottom: 20 }}>No pending disputes.</Text>
+        <EmptyState icon="checkmark-done-outline" title="No pending disputes" />
       ) : null}
 
-      <Text style={styles.sectionTitle}>SOS — Resolved ({resolved.length})</Text>
+      <Text style={styles.sectionTitle}>Resolved SOS ({resolved.length})</Text>
       {resolved.slice(0, 10).map((a) => (
-        <View key={a.id} style={[styles.alertCard, styles.resolvedCard]}>
+        <Card key={a.id} variant="muted" style={styles.resolvedCard}>
+          <Ionicons name="checkmark-circle-outline" size={14} color={colors.success} />
           <Text style={styles.alertMeta}>{new Date(a.createdAt).toLocaleString()}</Text>
-        </View>
+        </Card>
       ))}
     </Screen>
   );
 }
 
 const styles = StyleSheet.create({
-  sectionTitle: { fontSize: 16, fontWeight: "700", color: colors.text, marginBottom: 10, marginTop: 12 },
-  alertCard: {
-    backgroundColor: "#fef2f2",
-    borderWidth: 1,
-    borderColor: colors.danger,
-    borderRadius: 12,
-    padding: 14,
-    marginBottom: 10,
-    gap: 8,
+  sectionTitle: { ...typography.title, fontSize: 16, marginBottom: spacing.md, marginTop: spacing.md },
+  alertCard: { borderColor: colors.coral, borderWidth: 1, marginBottom: spacing.md, gap: spacing.sm },
+  disputeCard: { borderColor: colors.warning, borderWidth: 1, marginBottom: spacing.md, gap: spacing.sm },
+  resolvedCard: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: spacing.sm,
+    marginBottom: spacing.sm,
+    paddingVertical: spacing.sm,
+    paddingHorizontal: spacing.md,
   },
-  disputeCard: {
-    backgroundColor: "#fffbeb",
-    borderWidth: 1,
-    borderColor: colors.warning,
-    borderRadius: 12,
-    padding: 14,
-    marginBottom: 10,
-    gap: 8,
-  },
-  resolvedCard: { backgroundColor: colors.card, borderColor: colors.border },
-  alertMessage: { color: colors.text, fontWeight: "600" },
-  alertMeta: { color: colors.muted, fontSize: 12 },
-  rowGap: { flexDirection: "row", gap: 10 },
+  alertHeaderRow: { flexDirection: "row", alignItems: "center", gap: spacing.sm },
+  alertMessage: { ...typography.bodyStrong, flex: 1 },
+  alertMeta: { ...typography.caption },
+  rowGap: { flexDirection: "row", gap: spacing.sm },
 });

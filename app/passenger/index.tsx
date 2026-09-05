@@ -1,13 +1,27 @@
 import React, { useCallback, useState } from "react";
 import { RefreshControl, StyleSheet, Text, View } from "react-native";
 import { useFocusEffect, router } from "expo-router";
+import { Ionicons } from "@expo/vector-icons";
 import { Screen } from "@/components/Screen";
+import { ScreenHeader } from "@/components/ScreenHeader";
 import { Button } from "@/components/Button";
+import { Card } from "@/components/Card";
+import { Badge } from "@/components/Badge";
+import { StatTile } from "@/components/StatTile";
+import { EmptyState } from "@/components/EmptyState";
 import { useAuth } from "@/auth/AuthContext";
 import { listBookings } from "@/api/bookings";
 import type { Booking } from "@/types";
 import { PASSENGER_OPEN_BOOKING_STATUSES } from "@/lib/bookingGuards";
-import { colors } from "@/theme";
+import { BOOKING_STATUS } from "@/lib/statusPresentation";
+import { colors, radius, spacing, typography } from "@/theme";
+
+function timeOfDayGreeting() {
+  const hour = new Date().getHours();
+  if (hour < 12) return "Good morning";
+  if (hour < 18) return "Good afternoon";
+  return "Good evening";
+}
 
 export default function PassengerHomeScreen() {
   const { user } = useAuth();
@@ -16,8 +30,7 @@ export default function PassengerHomeScreen() {
 
   const load = useCallback(async () => {
     try {
-      const data = await listBookings();
-      setBookings(data);
+      setBookings(await listBookings());
     } finally {
       setIsLoading(false);
     }
@@ -29,103 +42,110 @@ export default function PassengerHomeScreen() {
     }, [load])
   );
 
-  const activeBooking = bookings.find((b) =>
-    PASSENGER_OPEN_BOOKING_STATUSES.includes(b.status)
-  );
+  const activeBooking = bookings.find((b) => PASSENGER_OPEN_BOOKING_STATUSES.includes(b.status));
   const completed = bookings.filter((b) => b.status === "COMPLETED").length;
   const pending = bookings.filter((b) => b.status === "PENDING").length;
 
   return (
-    <Screen refreshControl={<RefreshControl refreshing={isLoading} onRefresh={load} />}>
-      <Text style={styles.greeting}>Hi, {user?.name?.split(" ")[0] ?? "there"} 👋</Text>
+    <View style={styles.flex}>
+      <ScreenHeader
+        title={`${timeOfDayGreeting()}, ${user?.name?.split(" ")[0] ?? "there"}`}
+        subtitle="Where are you headed today?"
+      />
+      <Screen edges={["bottom"]} refreshControl={<RefreshControl refreshing={isLoading} onRefresh={load} />}>
+        {activeBooking ? (
+          <Card variant="elevated" style={styles.activeCard}>
+            <Badge {...BOOKING_STATUS[activeBooking.status]} />
+            <Text style={styles.activeAddress} numberOfLines={1}>
+              {activeBooking.dropoffAddress}
+            </Text>
+            <Button title="View Trip" icon="navigate" onPress={() => router.push("/passenger/trip")} />
+          </Card>
+        ) : (
+          <Card variant="elevated" style={styles.promptCard}>
+            <View style={styles.promptIconWrap}>
+              <Ionicons name="car-sport" size={24} color={colors.teal} />
+            </View>
+            <View style={styles.promptTextCol}>
+              <Text style={styles.promptTitle}>Ready to go?</Text>
+              <Text style={styles.promptSubtitle}>Book a tricycle, habal-habal, or bao-bao.</Text>
+            </View>
+          </Card>
+        )}
+        {!activeBooking ? (
+          <View style={styles.bookButtonWrap}>
+            <Button title="Book a Ride" icon="add-circle" onPress={() => router.push("/passenger/book")} />
+          </View>
+        ) : null}
 
-      {activeBooking ? (
-        <View style={styles.activeCard}>
-          <Text style={styles.activeLabel}>Active ride — {activeBooking.status}</Text>
-          <Text style={styles.activeAddress}>{activeBooking.dropoffAddress}</Text>
-          <Button title="View Trip" onPress={() => router.push("/passenger/trip")} />
+        <View style={styles.statsRow}>
+          <StatTile icon="receipt-outline" value={bookings.length} label="Total Trips" tone="teal" />
+          <StatTile icon="checkmark-done-outline" value={completed} label="Completed" tone="emerald" />
+          <StatTile icon="time-outline" value={pending} label="Pending" tone="amber" />
         </View>
-      ) : (
-        <View style={styles.card}>
-          <Text style={styles.cardTitle}>Ready to go?</Text>
-          <Button title="Book a Ride" onPress={() => router.push("/passenger/book")} />
-        </View>
-      )}
 
-      <View style={styles.statsRow}>
-        <Stat label="Total Trips" value={bookings.length} />
-        <Stat label="Completed" value={completed} />
-        <Stat label="Pending" value={pending} />
-      </View>
-
-      <Text style={styles.sectionTitle}>Recent Trips</Text>
-      {bookings.slice(0, 5).map((b) => (
-        <View key={b.id} style={styles.tripRow}>
-          <Text style={styles.tripAddress} numberOfLines={1}>
-            {b.dropoffAddress}
-          </Text>
-          <Text style={styles.tripStatus}>{b.status}</Text>
-        </View>
-      ))}
-      {!isLoading && bookings.length === 0 ? (
-        <Text style={{ color: colors.muted }}>No trips yet.</Text>
-      ) : null}
-    </Screen>
-  );
-}
-
-function Stat({ label, value }: { label: string; value: number }) {
-  return (
-    <View style={styles.stat}>
-      <Text style={styles.statValue}>{value}</Text>
-      <Text style={styles.statLabel}>{label}</Text>
+        <Text style={styles.sectionTitle}>Recent Trips</Text>
+        {bookings.slice(0, 5).map((b) => {
+          const status = BOOKING_STATUS[b.status];
+          return (
+            <Card key={b.id} style={styles.tripRow}>
+              <View style={[styles.tripIconWrap, { backgroundColor: status.bg }]}>
+                <Ionicons name={status.icon} size={16} color={status.color} />
+              </View>
+              <View style={styles.tripTextCol}>
+                <Text style={styles.tripAddress} numberOfLines={1}>
+                  {b.dropoffAddress}
+                </Text>
+                <Text style={[styles.tripStatusLabel, { color: status.color }]}>{status.label}</Text>
+              </View>
+            </Card>
+          );
+        })}
+        {!isLoading && bookings.length === 0 ? (
+          <EmptyState
+            icon="map-outline"
+            title="No trips yet"
+            subtitle="Your first ride will show up here once you book one."
+          />
+        ) : null}
+      </Screen>
     </View>
   );
 }
 
 const styles = StyleSheet.create({
-  greeting: { fontSize: 24, fontWeight: "700", color: colors.text, marginBottom: 16 },
-  card: {
-    backgroundColor: colors.card,
-    borderWidth: 1,
-    borderColor: colors.border,
-    borderRadius: 14,
-    padding: 18,
-    marginBottom: 20,
-    gap: 12,
-  },
-  cardTitle: { fontSize: 16, fontWeight: "600", color: colors.text },
-  activeCard: {
-    backgroundColor: "#ecfeff",
-    borderWidth: 1,
-    borderColor: colors.primary,
-    borderRadius: 14,
-    padding: 18,
-    marginBottom: 20,
-    gap: 8,
-  },
-  activeLabel: { color: colors.primary, fontWeight: "700" },
-  activeAddress: { color: colors.text, marginBottom: 8 },
-  statsRow: { flexDirection: "row", gap: 10, marginBottom: 24 },
-  stat: {
-    flex: 1,
-    backgroundColor: colors.card,
-    borderWidth: 1,
-    borderColor: colors.border,
-    borderRadius: 12,
-    paddingVertical: 14,
-    alignItems: "center",
-  },
-  statValue: { fontSize: 20, fontWeight: "700", color: colors.text },
-  statLabel: { fontSize: 12, color: colors.muted, marginTop: 2 },
-  sectionTitle: { fontSize: 16, fontWeight: "700", color: colors.text, marginBottom: 10 },
-  tripRow: {
+  flex: { flex: 1, backgroundColor: colors.background },
+  activeCard: { gap: spacing.sm, marginBottom: spacing.lg },
+  activeAddress: { ...typography.title, fontSize: 17 },
+  promptCard: {
     flexDirection: "row",
-    justifyContent: "space-between",
-    paddingVertical: 10,
-    borderBottomWidth: 1,
-    borderBottomColor: colors.border,
+    alignItems: "center",
+    gap: spacing.md,
+    marginBottom: spacing.md,
   },
-  tripAddress: { color: colors.text, flex: 1, marginRight: 8 },
-  tripStatus: { color: colors.muted, fontSize: 12, fontWeight: "600" },
+  promptIconWrap: {
+    width: 48,
+    height: 48,
+    borderRadius: radius.full,
+    backgroundColor: colors.surfaceMuted,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  promptTextCol: { flex: 1 },
+  promptTitle: { ...typography.title, fontSize: 17 },
+  promptSubtitle: { ...typography.caption, marginTop: 2 },
+  bookButtonWrap: { marginBottom: spacing.lg },
+  statsRow: { flexDirection: "row", gap: spacing.sm, marginBottom: spacing.xl },
+  sectionTitle: { ...typography.title, fontSize: 16, marginBottom: spacing.md },
+  tripRow: { flexDirection: "row", alignItems: "center", gap: spacing.md, marginBottom: spacing.sm },
+  tripIconWrap: {
+    width: 36,
+    height: 36,
+    borderRadius: radius.full,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  tripTextCol: { flex: 1 },
+  tripAddress: { ...typography.bodyStrong },
+  tripStatusLabel: { ...typography.caption, marginTop: 2, fontWeight: "700" },
 });

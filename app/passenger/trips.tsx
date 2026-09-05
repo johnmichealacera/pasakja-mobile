@@ -1,21 +1,18 @@
 import React, { useCallback, useState } from "react";
 import { Alert, Modal, Pressable, RefreshControl, StyleSheet, Text, TextInput, View } from "react-native";
 import { useFocusEffect } from "expo-router";
+import { Ionicons } from "@expo/vector-icons";
 import { Screen } from "@/components/Screen";
+import { ScreenHeader } from "@/components/ScreenHeader";
 import { Button } from "@/components/Button";
+import { Card } from "@/components/Card";
+import { Badge } from "@/components/Badge";
+import { EmptyState } from "@/components/EmptyState";
 import { listBookings, rateBooking, requestDispute } from "@/api/bookings";
 import { ApiError } from "@/api/client";
 import type { Booking } from "@/types";
-import { colors } from "@/theme";
-
-const STATUS_COLORS: Record<Booking["status"], string> = {
-  PENDING: colors.warning,
-  ACCEPTED: colors.primary,
-  PICKED_UP: colors.primary,
-  IN_PROGRESS: colors.primary,
-  COMPLETED: colors.success,
-  CANCELLED: colors.danger,
-};
+import { BOOKING_STATUS, DISPUTE_STATUS } from "@/lib/statusPresentation";
+import { colors, radius, spacing, typography } from "@/theme";
 
 const DISPUTE_WINDOW_MS = 2 * 60 * 60 * 1000;
 
@@ -54,45 +51,64 @@ export default function PassengerTripsScreen() {
   );
 
   return (
-    <Screen refreshControl={<RefreshControl refreshing={isLoading} onRefresh={load} />}>
-      <Text style={styles.title}>My Trips</Text>
-      {bookings.map((b) => (
-        <View key={b.id} style={styles.card}>
-          <View style={styles.rowBetween}>
-            <Text style={[styles.status, { color: STATUS_COLORS[b.status] }]}>{b.status}</Text>
-            <Text style={styles.fare}>{b.fare != null ? `₱${Number(b.fare).toFixed(2)}` : "—"}</Text>
-          </View>
-          <Text style={styles.address} numberOfLines={1}>
-            From: {b.pickupAddress}
-          </Text>
-          <Text style={styles.address} numberOfLines={1}>
-            To: {b.dropoffAddress}
-          </Text>
+    <View style={styles.flex}>
+      <ScreenHeader title="My Trips" subtitle={`${bookings.length} rides with Pasakja`} />
+      <Screen edges={["bottom"]} refreshControl={<RefreshControl refreshing={isLoading} onRefresh={load} />}>
+        {bookings.map((b) => {
+          const status = BOOKING_STATUS[b.status];
+          return (
+            <Card key={b.id} style={styles.card}>
+              <View style={styles.rowBetween}>
+                <Badge {...status} />
+                <Text style={styles.fare}>{b.fare != null ? `₱${Number(b.fare).toFixed(2)}` : "—"}</Text>
+              </View>
+              <View style={styles.routeRow}>
+                <Ionicons name="ellipse" size={8} color={colors.emerald} />
+                <Text style={styles.address} numberOfLines={1}>
+                  {b.pickupAddress}
+                </Text>
+              </View>
+              <View style={styles.routeConnector} />
+              <View style={styles.routeRow}>
+                <Ionicons name="location" size={11} color={colors.coral} />
+                <Text style={styles.address} numberOfLines={1}>
+                  {b.dropoffAddress}
+                </Text>
+              </View>
 
-          {b.rating ? <Text style={styles.ratedNote}>You rated this trip {b.rating.score}★</Text> : null}
-          {b.disputeStatus !== "NONE" ? (
-            <Text style={styles.disputeNote}>Dispute: {b.disputeStatus}</Text>
-          ) : null}
-
-          {canRate(b) || canDispute(b) ? (
-            <View style={styles.actions}>
-              {canRate(b) ? (
-                <View style={{ flex: 1 }}>
-                  <Button title="Rate Driver" variant="outline" onPress={() => setRatingTarget(b)} />
+              {b.rating ? (
+                <View style={styles.noteRow}>
+                  <Ionicons name="star" size={14} color={colors.amberDark} />
+                  <Text style={styles.ratedNote}>You rated this trip {b.rating.score}/5</Text>
                 </View>
               ) : null}
-              {canDispute(b) ? (
-                <View style={{ flex: 1 }}>
-                  <Button title="Dispute" variant="outline" onPress={() => setDisputeTarget(b)} />
+              {b.disputeStatus !== "NONE" ? (
+                <View style={styles.noteRow}>
+                  <Badge {...DISPUTE_STATUS[b.disputeStatus]} />
                 </View>
               ) : null}
-            </View>
-          ) : null}
-        </View>
-      ))}
-      {!isLoading && bookings.length === 0 ? (
-        <Text style={{ color: colors.muted }}>No trips yet — book your first ride!</Text>
-      ) : null}
+
+              {canRate(b) || canDispute(b) ? (
+                <View style={styles.actions}>
+                  {canRate(b) ? (
+                    <View style={{ flex: 1 }}>
+                      <Button title="Rate Driver" variant="outline" icon="star-outline" onPress={() => setRatingTarget(b)} />
+                    </View>
+                  ) : null}
+                  {canDispute(b) ? (
+                    <View style={{ flex: 1 }}>
+                      <Button title="Dispute" variant="outline" icon="alert-circle-outline" onPress={() => setDisputeTarget(b)} />
+                    </View>
+                  ) : null}
+                </View>
+              ) : null}
+            </Card>
+          );
+        })}
+        {!isLoading && bookings.length === 0 ? (
+          <EmptyState icon="receipt-outline" title="No trips yet" subtitle="Book your first ride to see it here." />
+        ) : null}
+      </Screen>
 
       <RatingModal
         booking={ratingTarget}
@@ -110,7 +126,7 @@ export default function PassengerTripsScreen() {
           );
         }}
       />
-    </Screen>
+    </View>
   );
 }
 
@@ -150,15 +166,19 @@ function RatingModal({
           <Text style={styles.modalTitle}>Rate your driver</Text>
           <View style={styles.starsRow}>
             {[1, 2, 3, 4, 5].map((n) => (
-              <Pressable key={n} onPress={() => setScore(n)}>
-                <Text style={[styles.star, n <= score && styles.starFilled]}>★</Text>
+              <Pressable key={n} onPress={() => setScore(n)} hitSlop={8}>
+                <Ionicons
+                  name={n <= score ? "star" : "star-outline"}
+                  size={34}
+                  color={n <= score ? colors.amber : colors.borderStrong}
+                />
               </Pressable>
             ))}
           </View>
           <TextInput
             style={styles.modalInput}
             placeholder="Add a comment (optional)"
-            placeholderTextColor={colors.muted}
+            placeholderTextColor={colors.inkFaint}
             value={comment}
             onChangeText={setComment}
             multiline
@@ -216,7 +236,7 @@ function DisputeModal({
           <TextInput
             style={styles.modalInput}
             placeholder="What happened?"
-            placeholderTextColor={colors.muted}
+            placeholderTextColor={colors.inkFaint}
             value={reason}
             onChangeText={setReason}
             multiline
@@ -236,42 +256,34 @@ function DisputeModal({
 }
 
 const styles = StyleSheet.create({
-  title: { fontSize: 24, fontWeight: "700", color: colors.text, marginBottom: 16 },
-  card: {
-    backgroundColor: colors.card,
-    borderWidth: 1,
-    borderColor: colors.border,
-    borderRadius: 12,
-    padding: 14,
-    marginBottom: 10,
-  },
-  rowBetween: { flexDirection: "row", justifyContent: "space-between", marginBottom: 6 },
-  status: { fontWeight: "700" },
-  fare: { fontWeight: "700", color: colors.text },
-  address: { color: colors.muted, fontSize: 13 },
-  ratedNote: { color: colors.success, fontSize: 12, marginTop: 6, fontWeight: "600" },
-  disputeNote: { color: colors.warning, fontSize: 12, marginTop: 6, fontWeight: "600" },
-  actions: { flexDirection: "row", gap: 10, marginTop: 10 },
+  flex: { flex: 1, backgroundColor: colors.background },
+  card: { marginBottom: spacing.md },
+  rowBetween: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", marginBottom: spacing.md },
+  fare: { ...typography.title, fontSize: 16 },
+  routeRow: { flexDirection: "row", alignItems: "center", gap: spacing.sm },
+  routeConnector: { width: 1, height: 10, backgroundColor: colors.border, marginLeft: 4, marginVertical: 1 },
+  address: { ...typography.body, flex: 1 },
+  noteRow: { flexDirection: "row", alignItems: "center", gap: spacing.xs, marginTop: spacing.sm },
+  ratedNote: { ...typography.caption, color: colors.amberDark, fontWeight: "700" },
+  actions: { flexDirection: "row", gap: spacing.sm, marginTop: spacing.md },
   modalOverlay: {
     flex: 1,
-    backgroundColor: "rgba(0,0,0,0.5)",
+    backgroundColor: "rgba(11,32,28,0.55)",
     justifyContent: "center",
-    padding: 24,
+    padding: spacing.xl,
   },
-  modalCard: { backgroundColor: colors.card, borderRadius: 16, padding: 20 },
-  modalTitle: { fontSize: 18, fontWeight: "700", color: colors.text, marginBottom: 6 },
-  modalSubtitle: { fontSize: 13, color: colors.muted, marginBottom: 14 },
-  starsRow: { flexDirection: "row", gap: 8, marginBottom: 16, justifyContent: "center" },
-  star: { fontSize: 32, color: colors.border },
-  starFilled: { color: colors.warning },
+  modalCard: { backgroundColor: colors.surface, borderRadius: radius.xl, padding: spacing.xl },
+  modalTitle: { ...typography.title, marginBottom: 6 },
+  modalSubtitle: { ...typography.caption, marginBottom: spacing.lg },
+  starsRow: { flexDirection: "row", gap: spacing.sm, marginBottom: spacing.lg, justifyContent: "center" },
   modalInput: {
     borderWidth: 1,
     borderColor: colors.border,
-    borderRadius: 10,
-    padding: 12,
-    color: colors.text,
+    borderRadius: radius.md,
+    padding: spacing.md,
+    color: colors.ink,
     minHeight: 60,
-    marginBottom: 16,
+    marginBottom: spacing.lg,
   },
-  modalActions: { flexDirection: "row", gap: 10 },
+  modalActions: { flexDirection: "row", gap: spacing.sm },
 });
