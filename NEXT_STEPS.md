@@ -1,0 +1,251 @@
+# Pasakja Mobile — Next Steps
+
+Everything through Phase 8 of the mobile plan is built and verified against the live backend from this machine (curl-level testing). What's left is entirely on your side: running it, filling in a few accounts you need to create yourself, building an installable APK, and testing it on an actual phone. This doc walks through all of that, in order.
+
+---
+
+## 0. What you'll do, in one paragraph
+
+You'll run the existing `pasakja` web app as the backend (nothing changes about how you already run it), point the mobile app at that backend, run the mobile app through Expo on your phone for fast iteration, then produce a real installable APK via EAS Build once you're happy, and install that on your Android phone for full end-to-end testing — including push notifications, which only work in a real build, never in plain Expo Go.
+
+---
+
+## 1. One-time tool installs
+
+On the computer you'll develop from (not the phone):
+
+```bash
+# Expo's CLI is invoked via npx, nothing to globally install for that.
+# EAS CLI (for cloud builds) — install once, globally:
+npm install -g eas-cli
+
+# Confirm it installed:
+eas --version
+```
+
+You do **not** need Android Studio or a local Android SDK for anything in this guide — EAS Build compiles the APK in the cloud. (If you ever want to run a local Android emulator instead, that's a separate, heavier setup and isn't covered here.)
+
+On your phone:
+- Install **Expo Go** from the Play Store (for Step 4 only — fast iteration without a custom build).
+- In **Settings → Security**, enable **"Install unknown apps"** for whichever app you'll use to open the APK file (Files, Chrome, etc.) — Android blocks sideloaded installs by default.
+
+---
+
+## 2. Missing configuration — things only you can supply
+
+These are the accounts/keys/values that were out of reach for me to set up, since they require your own logins. Everything else (API wiring, code) is already done.
+
+### 2a. Expo/EAS account + project link (required for push notifications)
+
+Push notifications need a real Expo project ID to mint device tokens. Without this, every other feature still works — pushes just silently no-op.
+
+```bash
+cd pasakja-mobile
+eas login          # creates a free Expo account if you don't have one
+eas init            # links this project to a new EAS project, writes the projectId into app config
+```
+
+After `eas init`, `npx expo config --json | grep -A2 '"eas"'` should show a `projectId`. That's it for this step — no code changes needed, `src/notifications/setup.ts` already reads it automatically.
+
+### 2b. Firebase project + FCM credentials (required for push notifications on Android)
+
+Google retired the old "legacy FCM" API, so Android push now requires you to supply your own Firebase service account key:
+
+1. Go to [console.firebase.google.com](https://console.firebase.google.com) → **Add project** (any name, e.g. "pasakja").
+2. In the new project: **Project settings (gear icon) → Service accounts → Generate new private key**. This downloads a JSON file — keep it safe, it's a credential.
+3. Upload it to your EAS project:
+   ```bash
+   eas credentials
+   ```
+   Choose **Android** → **Push Notifications: Manage your FCM V1 credentials** → **Upload a new service account key** → point it at the JSON file you downloaded.
+
+Do this once. If you skip it, the app still runs fine — you just won't receive push notifications on a device until this is done.
+
+### 2c. `API_BASE_URL` — point the app at your backend
+
+This is the one setting almost guaranteed to trip you up if skipped: **`.env`'s `API_BASE_URL` currently says `http://localhost:3000`, which only works in a simulator running on the same machine as the backend.** A physical phone's "localhost" is the phone itself, not your computer.
+
+Find your computer's LAN IP (same Wi-Fi network the phone will be on):
+
+```bash
+# macOS
+ipconfig getifaddr en0
+
+# Linux
+hostname -I | awk '{print $1}'
+
+# Windows (PowerShell)
+ipconfig | findstr IPv4
+```
+
+Then edit `pasakja-mobile/.env`:
+
+```env
+API_BASE_URL=http://192.168.1.23:3000    # ← your actual LAN IP, port 3000
+```
+
+(Android cleartext HTTP to this LAN address is already allowed — I added the `expo-build-properties` plugin config for that, see Step 9.)
+
+**Alternative (recommended if you have any hosting available):** deploy `pasakja` to a real host (Vercel, Render, etc.) and point `API_BASE_URL` at that HTTPS URL instead. This sidesteps the whole "same Wi-Fi network" constraint, is closer to how the capstone would actually run, and makes GCash/PayMongo redirects behave more predictably. Either approach works with zero code changes — just change `API_BASE_URL`.
+
+### 2d. An admin account (mobile can't self-register one)
+
+Public registration only creates PASSENGER or DRIVER accounts, by design (same as the web app). To get an admin account for testing the Admin screens:
+
+```bash
+cd pasakja
+npm run db:seed
+```
+
+This is safe to run anytime (it upserts, never duplicates) and creates:
+
+| Role | Email | Password |
+|---|---|---|
+| Admin | `admin@demo.com` | `demo123` |
+| Driver | `driver@demo.com` | `demo123` |
+| Passenger | `passenger@demo.com` | `demo123` |
+
+Use `admin@demo.com` to log into the Admin app. You'll also want the seeded driver/passenger, or just register fresh ones from the app — either works.
+
+### 2e. Google Maps API key restrictions (check, don't skip)
+
+Your key is already wired in (`.env` → `GOOGLE_MAPS_API_KEY_ANDROID`). If you added any restrictions to it in Google Cloud Console, confirm:
+- **Maps SDK for Android** is enabled for the project that key belongs to.
+- If you added an application restriction, it allows package name **`com.pasakja.mobile`** (and, once you build, its SHA-1 — see Step 5's note on `eas credentials` for how to get that fingerprint if you need to add it later).
+
+If the key is unrestricted, there's nothing to do here.
+
+### 2f. PayMongo — already fine, one thing to know
+
+`pasakja/.env` already has `sk_test_...`/`pk_test_...` keys — test mode, exactly as it should stay for the capstone. When you reach the GCash step in testing, PayMongo's **test-mode checkout page doesn't need a real GCash account** — it shows big "Authorize Test Payment" / "Fail Test Payment" buttons. Just click Authorize.
+
+---
+
+## 3. Run the backend
+
+```bash
+cd pasakja
+npm run dev
+```
+
+Leave this running. Confirm it's reachable from your phone's browser by visiting `http://<your-LAN-IP>:3000` (the same URL you put in `API_BASE_URL`) on the phone — if that doesn't load, the phone and computer aren't on the same network, or a firewall is blocking port 3000, and nothing else in this guide will work until that's fixed.
+
+---
+
+## 4. Fast iteration with Expo Go (no build needed)
+
+Good for UI/logic changes, **not** for push notifications (Expo Go dropped push support entirely as of the SDK this app uses — you'll need Step 5 for that).
+
+```bash
+cd pasakja-mobile
+npx expo start
+```
+
+Scan the QR code with the **Expo Go** app on your phone (Android: use Expo Go's built-in scanner; the app's camera app also works). The app loads over your Wi-Fi network — same network requirement as Step 2c.
+
+Everything works here except: push notifications, and Google/Apple Maps tiles may render with a "development build" watermark in some Expo Go versions (cosmetic only — this goes away in a real build).
+
+---
+
+## 5. Build an installable APK (EAS Build)
+
+This is the real test — a standalone app, installed like any other Android app, with push notifications fully working (once Step 2a/2b are done).
+
+```bash
+cd pasakja-mobile
+eas build --platform android --profile preview
+```
+
+- First run will ask to generate a new Android signing keystore — say yes, let EAS manage it (simplest option; it remembers this for future builds automatically).
+- This runs in Expo's cloud — takes roughly 10–20 minutes. You'll get a terminal link to a build page on expo.dev where you can watch progress.
+- When it finishes, the same page has a **Download** button (and a QR code that opens the download link directly on your phone).
+
+Two build profiles are already configured in `eas.json`:
+- **`preview`** — a standalone APK, no dev tools attached. Use this for the actual capstone demo and for anyone testing without your laptop nearby.
+- **`development`** — a "dev client" APK meant to be paired with `npx expo start --dev-client` for live-reloading during active development (faster than rebuilding for every code change). Use this while you're still iterating.
+
+```bash
+# Dev-client build, if you want live-reload without repeated full builds:
+eas build --platform android --profile development
+# then, once installed on the phone:
+npx expo start --dev-client
+```
+
+---
+
+## 6. Install the APK on your phone
+
+- **Easiest:** open the EAS build page's QR code directly on the phone's camera → tap the link → it downloads the `.apk` → tap the downloaded file → **Install**.
+- **Alternative:** download the `.apk` to your computer, transfer it to the phone (USB cable, email, cloud drive — anything), open it on the phone, tap **Install**.
+- Android will warn about installing from an unknown source the first time — that's expected for a sideloaded app; allow it (this is exactly what Step 1's "Install unknown apps" setting is for).
+
+---
+
+## 7. End-to-end testing checklist
+
+Work through these in order — later ones depend on earlier ones existing. Use two accounts (a passenger and a driver) — either the seeded demo accounts (Step 2d) or freshly registered ones.
+
+**Auth**
+- [ ] Register a new Passenger account (with KYC photo capture via camera and/or gallery).
+- [ ] Register a new Driver account (license + vehicle registration photos, vehicle type/plate/model).
+- [ ] Log out, log back in with each.
+
+**Driver approval (Admin)**
+- [ ] Log in as `admin@demo.com`.
+- [ ] Admin → Drivers → find your new driver (status "PENDING") → **Approve**.
+
+**Passenger booking (Cash)**
+- [ ] Log in as the passenger → Book tab → confirm the map loads with your location.
+- [ ] Set a dropoff (search a place or tap the map) → confirm a fare estimate appears.
+- [ ] Confirm booking with **Cash** → should land on the live Trip screen showing "Requested."
+
+**Driver accepts + completes**
+- [ ] Log in as the driver (or switch accounts) → go **Online** on the Home tab.
+- [ ] Requests tab → see the new request → **Accept**.
+- [ ] Trip tab → walk it through **Confirm Pickup → Start Trip → Complete Trip**.
+- [ ] Back on the passenger side, confirm the Trip screen updated live and the driver's marker moved on the map.
+
+**Rating**
+- [ ] Passenger → Trips (history) → rate the completed trip.
+
+**GCash payment**
+- [ ] Book again, choose **GCash** this time.
+- [ ] Confirm a browser tab opens to PayMongo's test checkout → tap **Authorize Test Payment**.
+- [ ] Confirm it returns to the app automatically (not the web browser) and lands on the Trip screen with a "Payment received" message.
+
+**SOS**
+- [ ] Passenger → SOS tab → send an alert.
+- [ ] Admin → SOS & Disputes → confirm the alert appears (with location) → **Mark Resolved**.
+
+**Push notifications** (only if Steps 2a/2b are done, and you're on a **built APK**, not Expo Go)
+- [ ] With the app backgrounded, have the other role trigger an event (e.g. driver accepts a booking) → confirm a system notification appears on the phone.
+- [ ] Tap the notification → confirm it opens the app to the relevant screen.
+
+**Admin overview**
+- [ ] Admin → Dashboard → stats look sane.
+- [ ] Admin → Bookings → filter by status.
+
+---
+
+## 8. Known limitations (by design, not bugs)
+
+These are intentional scope decisions from the mobile plan — don't spend time debugging them, they're expected:
+- **No background location** — GPS only broadcasts while the app is open/foregrounded (avoids Android's heavy background-location permission requirements for a capstone).
+- **Admin is deliberately reduced** — fare/zone rate editing, full analytics reports, and driver remittance management are web-only; the mobile Admin app covers Dashboard, Bookings, Drivers (KYC), and SOS/Disputes only.
+- **KYC documents are photos only** — no PDF upload on mobile (the web app allows PDFs too); a clear photo of the physical document is enough.
+- **OSRM (routing) uses a public, rate-limited demo server** — same as the web app already does; if maps/fare estimates start failing under heavy testing, that's this shared public service being rate-limited, not your setup.
+- **GCash minimum charge is ₱20** — a very short/cheap trip quote may be rejected by PayMongo itself if it estimates under that; the app already warns you and suggests cash instead.
+
+---
+
+## 9. Troubleshooting
+
+| Symptom | Likely cause | Fix |
+|---|---|---|
+| App loads but every screen shows a network error | `API_BASE_URL` wrong, or phone/computer not on the same Wi-Fi | Re-check Step 2c; test the URL in the phone's browser first |
+| Map screen is blank/grey | Google Maps key missing, restricted wrong, or "Maps SDK for Android" not enabled | Re-check Step 2e |
+| "Network request failed" specifically on API calls, only on a built APK (not Expo Go) | Cleartext HTTP blocked | Already fixed via `expo-build-properties` in `app.json` — if it still happens, confirm you rebuilt *after* that config was added |
+| Push notifications never arrive, only on a built APK | Steps 2a/2b not done yet | Run `eas init` and upload FCM credentials via `eas credentials` |
+| Push notifications never arrive, in **Expo Go** | Expected — Expo Go doesn't support push at all on this SDK | Test push only on a built APK (Step 5) |
+| GCash browser tab doesn't return to the app | Deep link scheme issue | Confirm you're testing a **built APK**, not Expo Go — Expo Go can't register the app's own `pasakja://` scheme the same way |
+| "You already have an active ride" when trying to book | A previous test booking is still open | Passenger → Trips → find the open one → cancel it (only works pre-pickup), or use `npx prisma studio` in `pasakja` to inspect/clean up test data directly |
