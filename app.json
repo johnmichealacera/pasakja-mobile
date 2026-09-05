@@ -64,7 +64,12 @@
       ]
     ],
     "extra": {
-      "apiBaseUrl": "http://localhost:3000"
-    }
+      "apiBaseUrl": "http://localhost:3000",
+      "router": {},
+      "eas": {
+        "projectId": "3ab0b872-c0c3-426c-8512-022b1e4fdd4e"
+      }
+    },
+    "owner": "jmann432015"
   }
 }

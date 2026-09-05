@@ -21,6 +21,11 @@ expo-env.d.ts
 *.key
 *.mobileprovision
 
+# Firebase / GCP service account keys (only ever needed transiently for `eas credentials`)
+*firebase-adminsdk*.json
+*serviceAccountKey*.json
+*service-account*.json
+
 # Metro
 .metro-health-check*
 
