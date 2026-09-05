@@ -65,28 +65,53 @@ Do this once. If you skip it, the app still runs fine — you just won't receive
 
 This is the one setting almost guaranteed to trip you up if skipped: **`.env`'s `API_BASE_URL` currently says `http://localhost:3000`, which only works in a simulator running on the same machine as the backend.** A physical phone's "localhost" is the phone itself, not your computer.
 
-Find your computer's LAN IP (same Wi-Fi network the phone will be on):
+You have two options for where the backend lives:
+
+- **Deploy `pasakja` to a real host (Vercel, Render, etc.)** and point `API_BASE_URL` at that HTTPS URL. Recommended — sidesteps the whole "same Wi-Fi network" constraint, is closer to how the capstone would actually run, and makes GCash/PayMongo redirects behave more predictably.
+- **Or use your computer's LAN IP** while running `pasakja` locally (same Wi-Fi network the phone will be on):
+  ```bash
+  # macOS
+  ipconfig getifaddr en0
+  # Linux
+  hostname -I | awk '{print $1}'
+  # Windows (PowerShell)
+  ipconfig | findstr IPv4
+  ```
+  Then `API_BASE_URL=http://192.168.1.23:3000` (your actual LAN IP, port 3000). Android cleartext HTTP to this address is already allowed — the `expo-build-properties` plugin config handles that, see Step 9.
+
+**Whichever you pick, set it in *two* places, not just `.env`:**
+
+1. **`pasakja-mobile/.env`** — for `npx expo start` / Expo Go / local dev-client runs.
+2. **As an EAS environment variable** — for any `eas build`. This is the part that's easy to miss: **EAS Build clones your repo fresh in the cloud. `.env` is (correctly) gitignored, so it never reaches that build — your app silently falls back to the hardcoded `localhost` default baked into `app.json`, and that gets compiled straight into the APK.** A built app pointing at `localhost` almost always means this step was skipped.
 
 ```bash
-# macOS
-ipconfig getifaddr en0
+cd pasakja-mobile
+eas env:set --scope project --name API_BASE_URL \
+  --value "https://pasakja.vercel.app" \
+  --visibility plaintext \
+  --environment production
 
-# Linux
-hostname -I | awk '{print $1}'
-
-# Windows (PowerShell)
-ipconfig | findstr IPv4
+# repeat with --environment preview, and --environment development,
+# so it's set no matter which build profile you use
 ```
 
-Then edit `pasakja-mobile/.env`:
+Do the same for `GOOGLE_MAPS_API_KEY_ANDROID` (from Step 2e) — it depends on `.env` too, so it has the exact same gap: silently empty in any EAS-built APK unless also registered this way. Use `--visibility sensitive` for that one since it's a credential:
 
-```env
-API_BASE_URL=http://192.168.1.23:3000    # ← your actual LAN IP, port 3000
+```bash
+eas env:set --scope project --name GOOGLE_MAPS_API_KEY_ANDROID \
+  --value "<your key>" \
+  --visibility sensitive \
+  --environment production
 ```
 
-(Android cleartext HTTP to this LAN address is already allowed — I added the `expo-build-properties` plugin config for that, see Step 9.)
+Confirm what's actually registered any time with:
+```bash
+eas env:list --environment production
+eas env:list --environment preview
+eas env:list --environment development
+```
 
-**Alternative (recommended if you have any hosting available):** deploy `pasakja` to a real host (Vercel, Render, etc.) and point `API_BASE_URL` at that HTTPS URL instead. This sidesteps the whole "same Wi-Fi network" constraint, is closer to how the capstone would actually run, and makes GCash/PayMongo redirects behave more predictably. Either approach works with zero code changes — just change `API_BASE_URL`.
+Changing an EAS environment variable only takes effect on your **next** `eas build` — it doesn't retroactively update an APK you already built.
 
 ### 2d. An admin account (mobile can't self-register one)
 
@@ -243,7 +268,8 @@ These are intentional scope decisions from the mobile plan — don't spend time 
 | Symptom | Likely cause | Fix |
 |---|---|---|
 | App loads but every screen shows a network error | `API_BASE_URL` wrong, or phone/computer not on the same Wi-Fi | Re-check Step 2c; test the URL in the phone's browser first |
-| Map screen is blank/grey | Google Maps key missing, restricted wrong, or "Maps SDK for Android" not enabled | Re-check Step 2e |
+| **A built APK (not Expo Go) is hitting `localhost:3000`** instead of your real backend | `API_BASE_URL` was only set in local `.env`, not as an EAS environment variable — EAS Build never sees `.env` since it's gitignored, so it silently falls back to the hardcoded default | Register it via `eas env:set` (Step 2c) for every profile you build with, then **rebuild** — an existing APK won't update itself |
+| Map screen is blank/grey | Google Maps key missing, restricted wrong, "Maps SDK for Android" not enabled, or (on a built APK) the key was only in `.env` and never registered via `eas env:set` | Re-check Step 2e and the `eas env:set` note in Step 2c |
 | "Network request failed" specifically on API calls, only on a built APK (not Expo Go) | Cleartext HTTP blocked | Already fixed via `expo-build-properties` in `app.json` — if it still happens, confirm you rebuilt *after* that config was added |
 | Push notifications never arrive, only on a built APK | Steps 2a/2b not done yet | Run `eas init` and upload FCM credentials via `eas credentials` |
 | Push notifications never arrive, in **Expo Go** | Expected — Expo Go doesn't support push at all on this SDK | Test push only on a built APK (Step 5) |
