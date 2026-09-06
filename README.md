@@ -30,7 +30,7 @@ Pasakja Mobile covers all three roles from the web app, adapted for a phone rath
 |---|---|
 | Framework | Expo (React Native) + Expo Router (file-based navigation) |
 | Language | TypeScript (strict) |
-| Maps | `react-native-maps` (Google Maps SDK on Android) |
+| Maps | `@maplibre/maplibre-react-native` — free CartoDB/OSM tiles, no API key or billing account needed |
 | Location | `expo-location` (foreground only) |
 | Push notifications | `expo-notifications` + Expo's push service |
 | Secure storage | `expo-secure-store` (auth token) |
@@ -118,4 +118,4 @@ One additive, nullable column: `User.pushToken String?` — stores a device's Ex
 
 ## Environment variables
 
-See `.env.example`. In short: `GOOGLE_MAPS_API_KEY_ANDROID` (Android map rendering) and `API_BASE_URL` (must point at a backend the *phone* can reach — never `localhost` on a physical device). Full explanation of both, plus the Expo/EAS/Firebase setup push notifications need, is in [NEXT_STEPS.md](./NEXT_STEPS.md).
+See `.env.example`. In short: `API_BASE_URL` (must point at a backend the *phone* can reach — never `localhost` on a physical device). Full explanation, plus the Expo/EAS/Firebase setup push notifications need, is in [NEXT_STEPS.md](./NEXT_STEPS.md).

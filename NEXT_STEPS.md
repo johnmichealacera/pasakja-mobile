@@ -95,15 +95,6 @@ eas env:set --scope project --name API_BASE_URL \
 # so it's set no matter which build profile you use
 ```
 
-Do the same for `GOOGLE_MAPS_API_KEY_ANDROID` (from Step 2e) — it depends on `.env` too, so it has the exact same gap: silently empty in any EAS-built APK unless also registered this way. Use `--visibility sensitive` for that one since it's a credential:
-
-```bash
-eas env:set --scope project --name GOOGLE_MAPS_API_KEY_ANDROID \
-  --value "<your key>" \
-  --visibility sensitive \
-  --environment production
-```
-
 Confirm what's actually registered any time with:
 ```bash
 eas env:list --environment production
@@ -132,13 +123,11 @@ This is safe to run anytime (it upserts, never duplicates) and creates:
 
 Use `admin@demo.com` to log into the Admin app. You'll also want the seeded driver/passenger, or just register fresh ones from the app — either works.
 
-### 2e. Google Maps API key restrictions (check, don't skip)
+### 2e. Maps — no API key needed at all
 
-Your key is already wired in (`.env` → `GOOGLE_MAPS_API_KEY_ANDROID`). If you added any restrictions to it in Google Cloud Console, confirm:
-- **Maps SDK for Android** is enabled for the project that key belongs to.
-- If you added an application restriction, it allows package name **`com.pasakja.mobile`** (and, once you build, its SHA-1 — see Step 5's note on `eas credentials` for how to get that fingerprint if you need to add it later).
+The app uses **MapLibre** rendering the same free CartoDB Voyager tiles the web app already falls back to when no Mapbox token is set — no Google Cloud project, no billing account, no API key, ever. This was a deliberate choice after running into Google Cloud's billing-account setup being unreliable (the `OR_BACR2` error family) — rather than fight that, or trade it for a different signup/token system with Mapbox, the app now depends on nothing but a public tile server. Nothing to configure here.
 
-If the key is unrestricted, there's nothing to do here.
+One consequence worth knowing: MapLibre isn't bundled in plain Expo Go, so the map screens (Book, Trip tracking) only render on a **custom dev-client or built APK** (Step 5) — same requirement push notifications already have, so if you're testing both together this changes nothing about your workflow.
 
 ### 2f. PayMongo — already fine, one thing to know
 
@@ -269,9 +258,33 @@ These are intentional scope decisions from the mobile plan — don't spend time 
 |---|---|---|
 | App loads but every screen shows a network error | `API_BASE_URL` wrong, or phone/computer not on the same Wi-Fi | Re-check Step 2c; test the URL in the phone's browser first |
 | **A built APK (not Expo Go) is hitting `localhost:3000`** instead of your real backend | `API_BASE_URL` was only set in local `.env`, not as an EAS environment variable — EAS Build never sees `.env` since it's gitignored, so it silently falls back to the hardcoded default | Register it via `eas env:set` (Step 2c) for every profile you build with, then **rebuild** — an existing APK won't update itself |
-| Map screen is blank/grey | Google Maps key missing, restricted wrong, "Maps SDK for Android" not enabled, or (on a built APK) the key was only in `.env` and never registered via `eas env:set` | Re-check Step 2e and the `eas env:set` note in Step 2c |
+| Map screen is blank/grey | You're in plain Expo Go — MapLibre needs a custom dev-client/built APK, same as push notifications | Test map screens on a built APK (Step 5), not Expo Go |
+| Map tiles load slowly or fail intermittently | The free CartoDB tile server is a shared public service with no SLA | Expected occasionally under heavy testing; not something to debug in the app itself |
 | "Network request failed" specifically on API calls, only on a built APK (not Expo Go) | Cleartext HTTP blocked | Already fixed via `expo-build-properties` in `app.json` — if it still happens, confirm you rebuilt *after* that config was added |
 | Push notifications never arrive, only on a built APK | Steps 2a/2b not done yet | Run `eas init` and upload FCM credentials via `eas credentials` |
 | Push notifications never arrive, in **Expo Go** | Expected — Expo Go doesn't support push at all on this SDK | Test push only on a built APK (Step 5) |
 | GCash browser tab doesn't return to the app | Deep link scheme issue | Confirm you're testing a **built APK**, not Expo Go — Expo Go can't register the app's own `pasakja://` scheme the same way |
 | "You already have an active ride" when trying to book | A previous test booking is still open | Passenger → Trips → find the open one → cancel it (only works pre-pickup), or use `npx prisma studio` in `pasakja` to inspect/clean up test data directly |
+
+---
+
+## 10. Publishing to the Google Play Store
+
+Status as of this writing: **not submitted yet**. Here's what's done, what's left, and what's just Play Console data-entry (not code).
+
+### Already fixed
+- **App icon, adaptive icon, and splash screen** replaced — the project used to ship the literal default Expo template icon (a generic blue arrow with design guides baked into the image). Now a real branded mark: a teal→emerald gradient with a bold white "P" monogram, wired into `app.json` (`icon`, `android.adaptiveIcon.*`, and the `expo-splash-screen` plugin).
+- **`eas.json` production profile has `autoIncrement: true`** — without this, your first build gets `versionCode` 1 and every later build fails to submit with "version code already used."
+- **Privacy Policy drafted** at `pasakja/app/privacy/page.tsx` (the web app, not this repo) — covers what's actually collected (account info, KYC documents, foreground-only location, SOS alerts, push tokens) and the real third parties involved (PayMongo, OSRM/Nominatim/CartoDB, Expo, Cloudinary). **Needs one decision from you: a real contact/support email** — it currently has a placeholder (`support@pasakja.app`, a domain you don't own) that needs to be swapped for an address you actually control before this goes live. After that, redeploy `pasakja` to Vercel and the policy is live at `https://pasakja.vercel.app/privacy` — that's the URL to paste into Play Console's App Content → Privacy Policy field.
+
+### Still needed — Play Console setup (not code, can't be done from here)
+- **App Content declarations**: Privacy Policy URL (above), Data Safety form (declare that you collect precise location, name/email/phone, photos, and that location/photos are shared with the third parties listed in the policy), Content Rating questionnaire, Target Audience & Content, Ads declaration (none, if you're not running ads).
+- **Store listing**: app title, short description, full description, at least 2 screenshots (phone), a 512×512 hi-res icon (already have the source — `assets/icon.png` — just needs exporting/uploading in Console), and a 1024×500 feature graphic.
+- **Closed/Internal testing track** (your chosen path): create the track in Play Console, add tester emails or a Google Group, share the opt-in link. Google may still require completing the App Content section above even for internal/closed tracks.
+- **Google Play Developer account**: the one-time $25 registration, done on your end.
+
+### Worth knowing, not blockers
+- Location permissions are foreground-only (no `ACCESS_BACKGROUND_LOCATION`) — this avoids Google's much stricter background-location review and a separate declaration form.
+- No `google-services.json` needed — push notifications go through Expo's push relay, not a direct Firebase SDK integration.
+- GCash payment happens in an external browser/checkout, not Google Play Billing — same model as Grab/Uber/DoorDash, so Play Billing policy doesn't apply here.
+- PayMongo stays in test mode (as required) — fine for closed/internal testing; just be deliberate that real strangers on a future public Production listing wouldn't be able to actually pay for a real ride until that's switched to live keys.

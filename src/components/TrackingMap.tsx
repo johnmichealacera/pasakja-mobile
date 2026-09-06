@@ -1,6 +1,7 @@
-import React, { useMemo } from "react";
+import React from "react";
 import { StyleSheet, View } from "react-native";
-import MapView, { Marker } from "react-native-maps";
+import { Map, Camera, Marker, type LngLat } from "@maplibre/maplibre-react-native";
+import { VOYAGER_STYLE } from "@/constants/mapStyle";
 import { colors } from "@/theme";
 
 interface Point {
@@ -15,43 +16,49 @@ interface TrackingMapProps {
   liveMarker?: { point: Point; label: string } | null;
 }
 
-/** Read-only map for an in-progress trip: fixed pickup/dropoff pins + one live marker. */
-export function TrackingMap({ pickup, dropoff, liveMarker }: TrackingMapProps) {
-  const initialRegion = useMemo(
-    () => ({
-      latitude: pickup.lat,
-      longitude: pickup.lng,
-      latitudeDelta: 0.03,
-      longitudeDelta: 0.03,
-    }),
-    [pickup.lat, pickup.lng]
-  );
+function toLngLat(p: Point): LngLat {
+  return [p.lng, p.lat];
+}
 
+function Pin({ color }: { color: string }) {
+  return <View style={[styles.dot, { backgroundColor: color }]} />;
+}
+
+/** Read-only map for an in-progress trip: fixed pickup/dropoff pins + one live marker. Free CartoDB tiles via MapLibre — no API key needed. */
+export function TrackingMap({ pickup, dropoff, liveMarker }: TrackingMapProps) {
   return (
     <View style={styles.container}>
-      <MapView style={StyleSheet.absoluteFill} initialRegion={initialRegion}>
-        <Marker
-          coordinate={{ latitude: pickup.lat, longitude: pickup.lng }}
-          pinColor={colors.success}
-          title="Pickup"
-        />
-        <Marker
-          coordinate={{ latitude: dropoff.lat, longitude: dropoff.lng }}
-          pinColor={colors.danger}
-          title="Dropoff"
-        />
+      <Map style={StyleSheet.absoluteFill} mapStyle={VOYAGER_STYLE}>
+        <Camera initialViewState={{ center: toLngLat(pickup), zoom: 15 }} />
+
+        <Marker lngLat={toLngLat(pickup)} id="pickup">
+          <Pin color={colors.success} />
+        </Marker>
+        <Marker lngLat={toLngLat(dropoff)} id="dropoff">
+          <Pin color={colors.coral} />
+        </Marker>
         {liveMarker ? (
-          <Marker
-            coordinate={{ latitude: liveMarker.point.lat, longitude: liveMarker.point.lng }}
-            pinColor={colors.teal}
-            title={liveMarker.label}
-          />
+          <Marker lngLat={toLngLat(liveMarker.point)} id="live">
+            <Pin color={colors.teal} />
+          </Marker>
         ) : null}
-      </MapView>
+      </Map>
     </View>
   );
 }
 
 const styles = StyleSheet.create({
   container: { flex: 1, overflow: "hidden" },
+  dot: {
+    width: 22,
+    height: 22,
+    borderRadius: 11,
+    borderWidth: 3,
+    borderColor: "#fff",
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.3,
+    shadowRadius: 2,
+    elevation: 3,
+  },
 });

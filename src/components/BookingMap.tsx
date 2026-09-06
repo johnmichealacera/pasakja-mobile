@@ -1,7 +1,17 @@
 import React from "react";
 import { StyleSheet, View } from "react-native";
-import MapView, { Marker, Polyline, type LatLng, type MapPressEvent } from "react-native-maps";
-import { SOCORRO_INITIAL_REGION } from "@/constants/map";
+import {
+  Map,
+  Camera,
+  Marker,
+  GeoJSONSource,
+  Layer,
+  type LngLat,
+  type PressEvent,
+} from "@maplibre/maplibre-react-native";
+import type { NativeSyntheticEvent } from "react-native";
+import { VOYAGER_STYLE } from "@/constants/mapStyle";
+import { SOCORRO_CENTER_LNGLAT, SOCORRO_BOUNDS, DEFAULT_ZOOM } from "@/constants/map";
 import { colors } from "@/theme";
 import type { NearbyDriver } from "@/types";
 
@@ -13,7 +23,7 @@ interface Point {
 interface BookingMapProps {
   pickup: Point | null;
   dropoff: Point | null;
-  /** Called with the tapped/dragged point — the caller decides whether it's the pickup or dropoff pin. */
+  /** Called with the tapped point — the caller decides whether it's the pickup or dropoff pin. */
   onSetPoint: (point: Point) => void;
   drivers?: NearbyDriver[];
   selectedDriverId?: string | null;
@@ -21,6 +31,15 @@ interface BookingMapProps {
   routePolyline?: Point[];
 }
 
+function toLngLat(p: Point): LngLat {
+  return [p.lng, p.lat];
+}
+
+function Pin({ color }: { color: string }) {
+  return <View style={[pinStyles.dot, { backgroundColor: color }]} />;
+}
+
+/** Free CartoDB Voyager tiles via MapLibre — no API key, no billing account, no Google/Mapbox dependency. */
 export function BookingMap({
   pickup,
   dropoff,
@@ -30,73 +49,83 @@ export function BookingMap({
   onSelectDriver,
   routePolyline,
 }: BookingMapProps) {
-  function handlePress(event: MapPressEvent) {
-    const { latitude, longitude } = event.nativeEvent.coordinate;
-    onSetPoint({ lat: latitude, lng: longitude });
+  function handlePress(event: NativeSyntheticEvent<PressEvent>) {
+    const [lng, lat] = event.nativeEvent.lngLat;
+    onSetPoint({ lat, lng });
   }
+
+  const routeGeoJson: GeoJSON.Feature | null =
+    routePolyline && routePolyline.length > 1
+      ? {
+          type: "Feature",
+          properties: {},
+          geometry: {
+            type: "LineString",
+            coordinates: routePolyline.map((p) => [p.lng, p.lat]),
+          },
+        }
+      : null;
 
   return (
     <View style={styles.container}>
-      <MapView
-        style={StyleSheet.absoluteFill}
-        initialRegion={SOCORRO_INITIAL_REGION}
-        onPress={handlePress}
-      >
+      <Map style={StyleSheet.absoluteFill} mapStyle={VOYAGER_STYLE} onPress={handlePress}>
+        <Camera
+          initialViewState={{ center: SOCORRO_CENTER_LNGLAT, zoom: DEFAULT_ZOOM }}
+          maxBounds={SOCORRO_BOUNDS}
+        />
+
         {pickup ? (
-          <Marker
-            coordinate={{ latitude: pickup.lat, longitude: pickup.lng }}
-            pinColor={colors.success}
-            title="Pickup"
-            draggable
-            onDragEnd={(e) =>
-              onSetPoint({
-                lat: e.nativeEvent.coordinate.latitude,
-                lng: e.nativeEvent.coordinate.longitude,
-              })
-            }
-          />
+          <Marker lngLat={toLngLat(pickup)} id="pickup">
+            <Pin color={colors.success} />
+          </Marker>
         ) : null}
 
         {dropoff ? (
-          <Marker
-            coordinate={{ latitude: dropoff.lat, longitude: dropoff.lng }}
-            pinColor={colors.danger}
-            title="Dropoff"
-            draggable
-            onDragEnd={(e) =>
-              onSetPoint({
-                lat: e.nativeEvent.coordinate.latitude,
-                lng: e.nativeEvent.coordinate.longitude,
-              })
-            }
-          />
+          <Marker lngLat={toLngLat(dropoff)} id="dropoff">
+            <Pin color={colors.coral} />
+          </Marker>
         ) : null}
 
         {drivers.map((d) => (
           <Marker
             key={d.driverId}
-            coordinate={{ latitude: d.lat, longitude: d.lng }}
-            pinColor={d.driverId === selectedDriverId ? colors.teal : colors.warning}
-            title={d.name}
-            description={`${d.vehicleType} · ${d.etaMinutes ?? "?"} min away`}
+            id={d.driverId}
+            lngLat={[d.lng, d.lat]}
             onPress={() => onSelectDriver?.(d)}
-          />
+          >
+            <Pin color={d.driverId === selectedDriverId ? colors.teal : colors.amber} />
+          </Marker>
         ))}
 
-        {routePolyline && routePolyline.length > 1 ? (
-          <Polyline
-            coordinates={routePolyline.map(
-              (p): LatLng => ({ latitude: p.lat, longitude: p.lng })
-            )}
-            strokeColor={colors.teal}
-            strokeWidth={4}
-          />
+        {routeGeoJson ? (
+          <GeoJSONSource id="route" data={routeGeoJson}>
+            <Layer
+              id="routeLine"
+              type="line"
+              style={{ lineColor: colors.teal, lineWidth: 4, lineCap: "round", lineJoin: "round" }}
+            />
+          </GeoJSONSource>
         ) : null}
-      </MapView>
+      </Map>
     </View>
   );
 }
 
 const styles = StyleSheet.create({
   container: { flex: 1, overflow: "hidden" },
+});
+
+const pinStyles = StyleSheet.create({
+  dot: {
+    width: 22,
+    height: 22,
+    borderRadius: 11,
+    borderWidth: 3,
+    borderColor: "#fff",
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.3,
+    shadowRadius: 2,
+    elevation: 3,
+  },
 });
