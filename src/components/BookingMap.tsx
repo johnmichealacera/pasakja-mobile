@@ -1,4 +1,3 @@
-import React from "react";
 import { StyleSheet, View } from "react-native";
 import {
   Map,
@@ -12,8 +11,18 @@ import {
 import type { NativeSyntheticEvent } from "react-native";
 import { MAP_STYLE_URL } from "@/constants/mapStyle";
 import { SOCORRO_CENTER_LNGLAT, SOCORRO_BOUNDS, DEFAULT_ZOOM } from "@/constants/map";
+import { ALL_SOCORRO_PLACES } from "@/lib/socorroPlaces";
 import { colors } from "@/theme";
 import type { NearbyDriver } from "@/types";
+
+const PLACES_GEOJSON: GeoJSON.FeatureCollection = {
+  type: "FeatureCollection",
+  features: ALL_SOCORRO_PLACES.map((p) => ({
+    type: "Feature",
+    properties: { name: p.name },
+    geometry: { type: "Point", coordinates: [p.lng, p.lat] },
+  })),
+};
 
 interface Point {
   lat: number;
@@ -74,6 +83,36 @@ export function BookingMap({
           maxBounds={SOCORRO_BOUNDS}
         />
 
+        <GeoJSONSource id="places" data={PLACES_GEOJSON}>
+          <Layer
+            id="placesDot"
+            type="circle"
+            paint={{
+              "circle-radius": 3,
+              "circle-color": colors.inkMuted,
+              "circle-stroke-width": 1,
+              "circle-stroke-color": "#ffffff",
+            }}
+          />
+          <Layer
+            id="placesLabel"
+            type="symbol"
+            layout={{
+              "text-field": ["get", "name"],
+              "text-size": 11,
+              "text-offset": [0, 0.8],
+              "text-anchor": "top",
+              "text-allow-overlap": false,
+              "text-optional": true,
+            }}
+            paint={{
+              "text-color": colors.inkMuted,
+              "text-halo-color": "#ffffff",
+              "text-halo-width": 1.2,
+            }}
+          />
+        </GeoJSONSource>
+
         {pickup ? (
           <Marker lngLat={toLngLat(pickup)} id="pickup">
             <Pin color={colors.success} />
@@ -102,7 +141,8 @@ export function BookingMap({
             <Layer
               id="routeLine"
               type="line"
-              style={{ lineColor: colors.teal, lineWidth: 4, lineCap: "round", lineJoin: "round" }}
+              layout={{ "line-cap": "round", "line-join": "round" }}
+              paint={{ "line-color": colors.teal, "line-width": 4 }}
             />
           </GeoJSONSource>
         ) : null}
