@@ -1,7 +1,7 @@
 import React from "react";
 import { StyleSheet, View } from "react-native";
 import { Map, Camera, Marker, type LngLat } from "@maplibre/maplibre-react-native";
-import { VOYAGER_STYLE } from "@/constants/mapStyle";
+import { MAP_STYLE_URL } from "@/constants/mapStyle";
 import { colors } from "@/theme";
 
 interface Point {
@@ -28,7 +28,7 @@ function Pin({ color }: { color: string }) {
 export function TrackingMap({ pickup, dropoff, liveMarker }: TrackingMapProps) {
   return (
     <View style={styles.container}>
-      <Map style={StyleSheet.absoluteFill} mapStyle={VOYAGER_STYLE}>
+      <Map style={StyleSheet.absoluteFill} mapStyle={MAP_STYLE_URL}>
         <Camera initialViewState={{ center: toLngLat(pickup), zoom: 15 }} />
 
         <Marker lngLat={toLngLat(pickup)} id="pickup">

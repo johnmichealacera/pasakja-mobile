@@ -1,25 +1,10 @@
-import type { StyleSpecification } from "@maplibre/maplibre-react-native";
-
 /**
- * Free CartoDB Voyager raster tiles — no API key, no billing account, ever.
- * Mirrors the exact fallback the web app already uses when no Mapbox token is
- * set (see ../pasakja/lib/map-tiles.ts). Chosen deliberately over a Google
- * Maps or Mapbox integration to avoid any signup/billing dependency.
+ * Free, key-less vector map style for the app.
+ *
+ * CARTO retired anonymous access to its old raster basemaps.cartocdn.com
+ * tiles (unauthenticated requests now render an "API key required"
+ * watermark over the map), so we use OpenFreeMap instead — a sponsored,
+ * genuinely free, no-signup, no-key vector tile service built for MapLibre.
+ * https://openfreemap.org
  */
-export const VOYAGER_STYLE: StyleSpecification = {
-  version: 8,
-  sources: {
-    voyager: {
-      type: "raster",
-      tiles: [
-        "https://a.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}.png",
-        "https://b.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}.png",
-        "https://c.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}.png",
-        "https://d.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}.png",
-      ],
-      tileSize: 256,
-      attribution: "© OpenStreetMap contributors © CARTO",
-    },
-  },
-  layers: [{ id: "voyager-layer", type: "raster", source: "voyager" }],
-};
+export const MAP_STYLE_URL = "https://tiles.openfreemap.org/styles/liberty";

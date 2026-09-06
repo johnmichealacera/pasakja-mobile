@@ -10,7 +10,7 @@ import {
   type PressEvent,
 } from "@maplibre/maplibre-react-native";
 import type { NativeSyntheticEvent } from "react-native";
-import { VOYAGER_STYLE } from "@/constants/mapStyle";
+import { MAP_STYLE_URL } from "@/constants/mapStyle";
 import { SOCORRO_CENTER_LNGLAT, SOCORRO_BOUNDS, DEFAULT_ZOOM } from "@/constants/map";
 import { colors } from "@/theme";
 import type { NearbyDriver } from "@/types";
@@ -68,7 +68,7 @@ export function BookingMap({
 
   return (
     <View style={styles.container}>
-      <Map style={StyleSheet.absoluteFill} mapStyle={VOYAGER_STYLE} onPress={handlePress}>
+      <Map style={StyleSheet.absoluteFill} mapStyle={MAP_STYLE_URL} onPress={handlePress}>
         <Camera
           initialViewState={{ center: SOCORRO_CENTER_LNGLAT, zoom: DEFAULT_ZOOM }}
           maxBounds={SOCORRO_BOUNDS}
