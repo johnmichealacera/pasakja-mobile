@@ -270,21 +270,4 @@ These are intentional scope decisions from the mobile plan — don't spend time 
 
 ## 10. Publishing to the Google Play Store
 
-Status as of this writing: **not submitted yet**. Here's what's done, what's left, and what's just Play Console data-entry (not code).
-
-### Already fixed
-- **App icon, adaptive icon, and splash screen** replaced — the project used to ship the literal default Expo template icon (a generic blue arrow with design guides baked into the image). Now a real branded mark: a teal→emerald gradient with a bold white "P" monogram, wired into `app.json` (`icon`, `android.adaptiveIcon.*`, and the `expo-splash-screen` plugin).
-- **`eas.json` production profile has `autoIncrement: true`** — without this, your first build gets `versionCode` 1 and every later build fails to submit with "version code already used."
-- **Privacy Policy drafted** at `pasakja/app/privacy/page.tsx` (the web app, not this repo) — covers what's actually collected (account info, KYC documents, foreground-only location, SOS alerts, push tokens) and the real third parties involved (PayMongo, OSRM/Nominatim/CartoDB, Expo, Cloudinary). **Needs one decision from you: a real contact/support email** — it currently has a placeholder (`support@pasakja.app`, a domain you don't own) that needs to be swapped for an address you actually control before this goes live. After that, redeploy `pasakja` to Vercel and the policy is live at `https://pasakja.vercel.app/privacy` — that's the URL to paste into Play Console's App Content → Privacy Policy field.
-
-### Still needed — Play Console setup (not code, can't be done from here)
-- **App Content declarations**: Privacy Policy URL (above), Data Safety form (declare that you collect precise location, name/email/phone, photos, and that location/photos are shared with the third parties listed in the policy), Content Rating questionnaire, Target Audience & Content, Ads declaration (none, if you're not running ads).
-- **Store listing**: app title, short description, full description, at least 2 screenshots (phone), a 512×512 hi-res icon (already have the source — `assets/icon.png` — just needs exporting/uploading in Console), and a 1024×500 feature graphic.
-- **Closed/Internal testing track** (your chosen path): create the track in Play Console, add tester emails or a Google Group, share the opt-in link. Google may still require completing the App Content section above even for internal/closed tracks.
-- **Google Play Developer account**: the one-time $25 registration, done on your end.
-
-### Worth knowing, not blockers
-- Location permissions are foreground-only (no `ACCESS_BACKGROUND_LOCATION`) — this avoids Google's much stricter background-location review and a separate declaration form.
-- No `google-services.json` needed — push notifications go through Expo's push relay, not a direct Firebase SDK integration.
-- GCash payment happens in an external browser/checkout, not Google Play Billing — same model as Grab/Uber/DoorDash, so Play Billing policy doesn't apply here.
-- PayMongo stays in test mode (as required) — fine for closed/internal testing; just be deliberate that real strangers on a future public Production listing wouldn't be able to actually pay for a real ride until that's switched to live keys.
+Moved to its own document: **[PLAY_STORE.md](./PLAY_STORE.md)** — status, what's already fixed on the code side, and the full step-by-step Play Console checklist.
