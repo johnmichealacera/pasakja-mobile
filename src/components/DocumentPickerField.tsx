@@ -4,6 +4,7 @@ import * as ImagePicker from "expo-image-picker";
 import { Button } from "@/components/Button";
 import { colors } from "@/theme";
 import type { PickedFile } from "@/api/uploads";
+import { IMAGE_CAMERA_OPTIONS, IMAGE_LIBRARY_OPTIONS, toUploadableJpeg } from "@/lib/pickedImage";
 
 export interface UploadedDocument {
   type: string;
@@ -47,22 +48,16 @@ export function DocumentPickerField({
 
     const result =
       source === "camera"
-        ? await ImagePicker.launchCameraAsync({ quality: 0.7 })
-        : await ImagePicker.launchImageLibraryAsync({ quality: 0.7 });
+        ? await ImagePicker.launchCameraAsync(IMAGE_CAMERA_OPTIONS)
+        : await ImagePicker.launchImageLibraryAsync(IMAGE_LIBRARY_OPTIONS);
 
     if (result.canceled || !result.assets[0]) return;
 
-    const asset = result.assets[0];
-    const file: PickedFile = {
-      uri: asset.uri,
-      name: asset.fileName ?? `${docType.toLowerCase()}.jpg`,
-      mimeType: asset.mimeType ?? "image/jpeg",
-    };
-
     setIsUploading(true);
     try {
+      const file = await toUploadableJpeg(result.assets[0], `${docType.toLowerCase()}.jpg`);
       const { url } = await upload(file);
-      setPreviewUri(asset.uri);
+      setPreviewUri(file.uri);
       onUploaded({ type: docType, url, filename: file.name });
     } catch (err) {
       Alert.alert("Upload failed", err instanceof Error ? err.message : "Please try again.");

@@ -11,6 +11,7 @@ import { Avatar } from "@/components/Avatar";
 import { useAuth } from "@/auth/AuthContext";
 import { uploadProfileImage } from "@/api/uploads";
 import { updateProfile } from "@/api/profile";
+import { IMAGE_LIBRARY_OPTIONS, toUploadableJpeg } from "@/lib/pickedImage";
 import { colors, radius, spacing, typography } from "@/theme";
 
 const ROLE_LABEL: Record<string, string> = {
@@ -30,19 +31,16 @@ export function ProfileScreenBody() {
       Alert.alert("Permission needed", "Please allow photo library access.");
       return;
     }
-    const result = await ImagePicker.launchImageLibraryAsync({ quality: 0.7 });
+    const result = await ImagePicker.launchImageLibraryAsync(IMAGE_LIBRARY_OPTIONS);
     if (result.canceled || !result.assets[0]) return;
 
     const asset = result.assets[0];
     setIsUploading(true);
     try {
-      const { url } = await uploadProfileImage({
-        uri: asset.uri,
-        name: asset.fileName ?? "profile.jpg",
-        mimeType: asset.mimeType ?? "image/jpeg",
-      });
+      const file = await toUploadableJpeg(asset, "profile.jpg");
+      const { url } = await uploadProfileImage(file);
       await updateProfile({ profileImage: url });
-      setAvatarUri(asset.uri);
+      setAvatarUri(file.uri);
     } catch (err) {
       Alert.alert("Upload failed", err instanceof Error ? err.message : "Please try again.");
     } finally {

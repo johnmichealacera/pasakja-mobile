@@ -15,10 +15,11 @@ async function uploadFile(
 ): Promise<{ url: string }> {
   const form = new FormData();
   // React Native's fetch accepts this shape for a file part; not a browser File/Blob.
+  const mimeType = file.mimeType === "image/jpg" ? "image/jpeg" : file.mimeType;
   form.append("file", {
     uri: file.uri,
     name: file.name,
-    type: file.mimeType,
+    type: mimeType,
   } as unknown as Blob);
 
   const headers: Record<string, string> = {};
